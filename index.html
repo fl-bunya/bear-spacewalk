@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>黄色い熊 Spacewalk</title>
+        <title>宇宙でさみしいなあ</title>
         <style>
             html,
             body {
@@ -41,16 +41,14 @@
                 pointer-events: none;
             }
             #start {
-                padding: 16px 48px;
-                border-radius: 999px;
+                width: 88px;
+                height: 88px;
+                border-radius: 50%;
                 border: 1px solid rgba(150, 190, 255, 0.55);
                 background: rgba(40, 80, 160, 0.22);
-                color: #dcebff;
-                font-family: inherit;
-                font-size: 16px;
-                font-weight: 600;
-                letter-spacing: 0.28em;
-                text-indent: 0.28em; /* letter-spacing の末尾余白ぶん文字を中央へ寄せる */
+                display: flex;
+                align-items: center;
+                justify-content: center;
                 cursor: pointer;
                 box-shadow: 0 0 26px rgba(74, 144, 217, 0.35);
                 transition:
@@ -58,10 +56,19 @@
                     box-shadow 0.25s ease,
                     transform 0.25s ease;
             }
+            #start::after {
+                content: "";
+                width: 0;
+                height: 0;
+                border-style: solid;
+                border-width: 15px 0 15px 25px; /* 右向き三角形 */
+                border-color: transparent transparent transparent #dcebff;
+                margin-left: 7px; /* 三角形の重心ぶん右へ寄せて光学中央に */
+            }
             #start:hover {
                 background: rgba(70, 120, 210, 0.38);
                 box-shadow: 0 0 42px rgba(96, 165, 250, 0.6);
-                transform: scale(1.05);
+                transform: scale(1.08);
             }
             #overlay p {
                 font-size: 13px;
@@ -134,23 +141,43 @@
             #music input {
                 display: none;
             }
-            /* 再生中のファイル名（右下・曲を選ぶの上） */
+            /* 再生中のファイル名（右下・曲を選ぶの上）。両脇の « » で前後の曲へ */
             #nowplaying {
                 position: fixed;
                 right: 14px;
                 bottom: 32px;
                 z-index: 5;
-                max-width: 42vw;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                white-space: nowrap;
+                display: flex;
+                align-items: center;
+                justify-content: flex-end;
+                gap: 10px;
                 color: rgba(180, 205, 255, 0.4);
                 font:
                     11px/1.4 "Hiragino Kaku Gothic ProN",
                     sans-serif;
                 letter-spacing: 0.08em;
                 pointer-events: none;
-                text-align: right;
+            }
+            #nowplaying span {
+                max-width: 42vw;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            #nowplaying button {
+                pointer-events: auto;
+                background: none;
+                border: none;
+                padding: 0 2px;
+                color: rgba(180, 205, 255, 0.55);
+                font-size: 15px;
+                line-height: 1;
+                cursor: pointer;
+                display: none; /* プレイリスト読み込み後に表示 */
+                transition: color 0.2s ease;
+            }
+            #nowplaying button:hover {
+                color: rgba(215, 235, 255, 0.95);
             }
             #overlay .hint {
                 font-size: 11px;
@@ -178,12 +205,28 @@
     </head>
     <body>
         <div id="overlay">
-            <button id="start" type="button">▶</button>
-            <p class="hint">
-                自分の曲はドラッグ＆ドロップ、または右下の「曲を選ぶ」
-            </p>
+            <button id="start" type="button" aria-label="再生"></button>
+            <p class="hint">音が出ます</p>
         </div>
-        <div id="nowplaying"></div>
+        <div id="nowplaying">
+            <button
+                id="prevTrack"
+                type="button"
+                aria-label="前の曲"
+                title="前の曲"
+            >
+                «
+            </button>
+            <span id="trackname"></span>
+            <button
+                id="nextTrack"
+                type="button"
+                aria-label="次の曲"
+                title="次の曲"
+            >
+                »
+            </button>
+        </div>
         <div id="music">
             <label for="musicFile">曲を選ぶ</label
             ><input id="musicFile" type="file" accept="audio/*" />
@@ -1725,7 +1768,28 @@
                     audioEl.src = trackUrl(playlist[0]);
                     setNowPlaying(playlist[0]);
                 }
+                if (playlist.length > 1) {
+                    document.getElementById("prevTrack").style.display =
+                        "inline-block";
+                    document.getElementById("nextTrack").style.display =
+                        "inline-block";
+                }
             });
+            // 前の曲・次の曲。D&Dの差し替え曲の再生中に押した場合はプレイリストに戻る
+            function stepTrack(dir) {
+                if (!playlist.length) return;
+                if (currentObjectURL) {
+                    URL.revokeObjectURL(currentObjectURL);
+                    currentObjectURL = null;
+                }
+                playTrack(trackIndex + dir);
+            }
+            document
+                .getElementById("prevTrack")
+                .addEventListener("click", () => stepTrack(-1));
+            document
+                .getElementById("nextTrack")
+                .addEventListener("click", () => stepTrack(1));
             // 曲が終わったら次へ。D&Dの差し替え曲と単曲フォールバックは従来どおりループ
             audioEl.addEventListener("ended", () => {
                 if (playlist.length && !currentObjectURL) {
@@ -1799,7 +1863,7 @@
             // BGM 差し替え（File API）：選択／ドロップした音声を読み込み、その場で差し替える
             const musicWrap = document.getElementById("music");
             const musicInput = document.getElementById("musicFile");
-            const nowPlaying = document.getElementById("nowplaying");
+            const nowPlaying = document.getElementById("trackname");
             function setNowPlaying(name) {
                 nowPlaying.textContent = name ? "♪ " + name : "";
             }
