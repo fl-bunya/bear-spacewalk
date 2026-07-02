@@ -1,0 +1,11 @@
+# 依存パッケージ
+node_modules/
+
+# テクスチャ元素材（8K JPEG/TIFF。README記載どおりコミット対象外）
+materials/
+
+# 生成物（node generate-playlist.js で生成。デプロイ前に生成する）
+music/playlist.json
+
+# macOS
+.DS_Store

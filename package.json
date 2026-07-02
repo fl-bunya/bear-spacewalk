@@ -1,0 +1,8 @@
+{
+  "scripts": {
+    "build": "node generate-playlist.js"
+  },
+  "dependencies": {
+    "playwright": "^1.61.0"
+  }
+}

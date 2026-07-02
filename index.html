@@ -1,0 +1,2376 @@
+<!doctype html>
+<html lang="ja">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>黄色い熊 Spacewalk</title>
+        <style>
+            html,
+            body {
+                margin: 0;
+                padding: 0;
+                overflow: hidden;
+                background: #02030a;
+                height: 100%;
+            }
+            canvas {
+                display: block;
+            }
+            #overlay {
+                position: fixed;
+                inset: 0;
+                z-index: 10;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                background: radial-gradient(
+                    ellipse at center,
+                    rgba(10, 18, 40, 0.85) 0%,
+                    rgba(2, 3, 10, 0.95) 70%
+                );
+                color: #cfe3ff;
+                cursor: pointer;
+                user-select: none;
+                font-family:
+                    "Hiragino Kaku Gothic ProN", "Hiragino Sans", sans-serif;
+                transition: opacity 1.2s ease;
+            }
+            #overlay.hidden {
+                opacity: 0;
+                pointer-events: none;
+            }
+            #start {
+                padding: 16px 48px;
+                border-radius: 999px;
+                border: 1px solid rgba(150, 190, 255, 0.55);
+                background: rgba(40, 80, 160, 0.22);
+                color: #dcebff;
+                font-family: inherit;
+                font-size: 16px;
+                font-weight: 600;
+                letter-spacing: 0.28em;
+                text-indent: 0.28em; /* letter-spacing の末尾余白ぶん文字を中央へ寄せる */
+                cursor: pointer;
+                box-shadow: 0 0 26px rgba(74, 144, 217, 0.35);
+                transition:
+                    background 0.25s ease,
+                    box-shadow 0.25s ease,
+                    transform 0.25s ease;
+            }
+            #start:hover {
+                background: rgba(70, 120, 210, 0.38);
+                box-shadow: 0 0 42px rgba(96, 165, 250, 0.6);
+                transform: scale(1.05);
+            }
+            #overlay p {
+                font-size: 13px;
+                letter-spacing: 0.25em;
+                opacity: 0.7;
+                animation: pulse 2.4s ease-in-out infinite;
+            }
+            @keyframes pulse {
+                0%,
+                100% {
+                    opacity: 0.35;
+                }
+                50% {
+                    opacity: 0.85;
+                }
+            }
+            #volume {
+                position: fixed;
+                left: 14px;
+                bottom: 10px;
+                z-index: 5;
+                display: none;
+                align-items: center;
+                gap: 7px;
+                color: rgba(180, 205, 255, 0.8);
+                font-size: 12px;
+                opacity: 0.35;
+                transition: opacity 0.3s ease;
+            }
+            #volume.show {
+                display: flex;
+            }
+            #volume:hover {
+                opacity: 0.85;
+            }
+            #volume input {
+                width: 90px;
+                height: 3px;
+                cursor: pointer;
+                accent-color: #5fa8ff;
+                background: transparent;
+            }
+            /* BGM 差し替えUI（右下・さりげないが押せると分かる下線リンク調） */
+            #music {
+                position: fixed;
+                right: 14px;
+                bottom: 10px;
+                z-index: 5;
+                display: none;
+                justify-content: flex-end;
+                opacity: 0.3;
+                transition: opacity 0.3s ease;
+            }
+            #music.show {
+                display: flex;
+            }
+            #music:hover {
+                opacity: 0.9;
+            }
+            #music label {
+                color: rgba(180, 205, 255, 0.85);
+                font-size: 11px;
+                cursor: pointer;
+                letter-spacing: 0.12em;
+                user-select: none;
+                border-bottom: 1px solid rgba(150, 185, 255, 0.5);
+                padding-bottom: 1px;
+                font-family: "Hiragino Kaku Gothic ProN", sans-serif;
+            }
+            #music input {
+                display: none;
+            }
+            /* 再生中のファイル名（右下・曲を選ぶの上） */
+            #nowplaying {
+                position: fixed;
+                right: 14px;
+                bottom: 32px;
+                z-index: 5;
+                max-width: 42vw;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                color: rgba(180, 205, 255, 0.4);
+                font:
+                    11px/1.4 "Hiragino Kaku Gothic ProN",
+                    sans-serif;
+                letter-spacing: 0.08em;
+                pointer-events: none;
+                text-align: right;
+            }
+            #overlay .hint {
+                font-size: 11px;
+                letter-spacing: 0.12em;
+                opacity: 0.45;
+                margin-top: 18px;
+            }
+            body.dropping::after {
+                content: "\266a  \3053\3053\306b\66f2\3092\30c9\30ed\30c3\30d7";
+                position: fixed;
+                inset: 0;
+                z-index: 20;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: rgba(10, 18, 40, 0.55);
+                color: #cfe3ff;
+                font:
+                    18px/1 "Hiragino Kaku Gothic ProN",
+                    sans-serif;
+                letter-spacing: 0.2em;
+                pointer-events: none;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="overlay">
+            <button id="start" type="button">▶</button>
+            <p class="hint">
+                自分の曲はドラッグ＆ドロップ、または右下の「曲を選ぶ」
+            </p>
+        </div>
+        <div id="nowplaying"></div>
+        <div id="music">
+            <label for="musicFile">曲を選ぶ</label
+            ><input id="musicFile" type="file" accept="audio/*" />
+        </div>
+        <div id="volume">
+            <span>♪</span
+            ><input id="vol" type="range" min="0" max="1" step="0.01" />
+        </div>
+        <audio id="bgm" preload="auto"></audio>
+        <script src="./lib/three.min.js"></script>
+        <script>
+            "use strict";
+
+            // ====== 調整しやすいように主要パラメータを集約 ======
+            const CONFIG = {
+                bearColor: 0xf7d452, // 黄色い熊の体色
+                shirtColor: 0x1f7fd0, // シャツの青
+                earthRadius: 7.0,
+                earthPos: [-3.2, -8.6, -1.5],
+                bearOffset: [0.42, 0, -1.05], // カメラ至近に置く（最接近時の地表より必ず手前＝地球に隠れない）
+                bearScale: 0.11, // 至近距離でも画面上ではほどよい大きさになる縮小率
+                starCount: 5000,
+                earthSpin: 0.02, // 自転速度 rad/s（timeSync無効時の演出速度）
+                orbitSpeed: 0.02, // 遊覧カメラの基本周回速度 rad/s（1周 ≈ 5分強）
+                tourSpin: 0.01, // 俯瞰ツアーの自転速度 rad/s（約10.5分で1周＝日本→欧州120°を約3.5分）
+                camAz0: 0.0, // 俯瞰カメラの固定方位（開始時に日本が中央に来るよう調整）
+                timeSync: true, // true: 現在時刻の太陽位置に同期（昼夜は現実どおり）
+                // 地球は tourSpin でゆっくり自転し、日本→西へユーラシアを映す
+                audioFile: "./music/宇宙でさみしいなあ1-v4.5.mp3", // プレイリスト取得不可時（file://等）の単曲フォールバック
+            };
+
+            const isPreview = location.search.indexOf("preview") !== -1;
+
+            // ====== レンダラ / シーン / カメラ ======
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            document.body.appendChild(renderer.domElement);
+
+            // ====== ポストプロセッシング基盤（太陽グロー / ゴッドレイ / Bloom 用） ======
+            // 本シーンを一旦テクスチャに描き、遮蔽バッファ→放射状ブラー→合成の順で画面に出す。
+            // 重い処理は 1/2 解像度（hW×hH）に落として GPU 負荷を抑える。
+            let W = window.innerWidth,
+                H = window.innerHeight;
+            let hW = Math.max(1, W >> 1),
+                hH = Math.max(1, H >> 1);
+            // HalfFloat（16bit）でグラデーションのバンディング（縞・ドット）を防ぐ
+            const rtOpt = {
+                minFilter: THREE.LinearFilter,
+                magFilter: THREE.LinearFilter,
+                format: THREE.RGBAFormat,
+                type: THREE.HalfFloatType,
+            };
+            // sceneRT は MSAA 付き（WebGL2）。後処理でRT経由にすると renderer の antialias が
+            // 効かなくなるため、ここで multisample を有効にして輪郭のギザギザを抑える
+            const sceneRT = new THREE.WebGLRenderTarget(
+                W,
+                H,
+                Object.assign(
+                    { depthBuffer: true, stencilBuffer: false, samples: 4 },
+                    rtOpt,
+                ),
+            );
+            const occRT = new THREE.WebGLRenderTarget(
+                hW,
+                hH,
+                Object.assign(
+                    { depthBuffer: true, stencilBuffer: false },
+                    rtOpt,
+                ),
+            );
+            const godRT = new THREE.WebGLRenderTarget(
+                hW,
+                hH,
+                Object.assign({ depthBuffer: false }, rtOpt),
+            );
+            const brightRT = new THREE.WebGLRenderTarget(
+                hW,
+                hH,
+                Object.assign({ depthBuffer: false }, rtOpt),
+            );
+            const blurA = new THREE.WebGLRenderTarget(
+                hW,
+                hH,
+                Object.assign({ depthBuffer: false }, rtOpt),
+            );
+            const blurB = new THREE.WebGLRenderTarget(
+                hW,
+                hH,
+                Object.assign({ depthBuffer: false }, rtOpt),
+            );
+
+            // フルスクリーンquad：後処理シェーダを画面全体に適用する土台
+            const fsCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+            const fsScene = new THREE.Scene();
+            const fsQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), null);
+            fsScene.add(fsQuad);
+            const FS_VERT = `
+  varying vec2 vUv;
+  void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }
+`;
+            function blit(mat, target) {
+                fsQuad.material = mat;
+                renderer.setRenderTarget(target);
+                renderer.render(fsScene, fsCam);
+            }
+
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x02030a);
+
+            const camera = new THREE.PerspectiveCamera(
+                50,
+                window.innerWidth / window.innerHeight,
+                0.1,
+                200,
+            );
+            camera.position.set(0, 0.3, 7.5);
+
+            // ====== ライティング ======
+            // 太陽（画面右上奥からの暖色平行光）
+            const sun = new THREE.DirectionalLight(0xfff2dd, 0.72);
+            sun.position.set(6, 4, 5);
+            scene.add(sun);
+            const sunDir = sun.position.clone().normalize();
+
+            // 地球からの照り返し（低音で脈動し、熊を照らす）
+            const earthLight = new THREE.PointLight(0x5fa8ff, 1.0, 80, 1.6);
+            earthLight.position.set(...CONFIG.earthPos);
+            scene.add(earthLight);
+
+            scene.add(new THREE.AmbientLight(0x1a2438, 1.0));
+
+            // ====== 星空（高音できらめく Points） ======
+            const starGeo = new THREE.BufferGeometry();
+            {
+                const pos = new Float32Array(CONFIG.starCount * 3);
+                const phase = new Float32Array(CONFIG.starCount);
+                const size = new Float32Array(CONFIG.starCount);
+                for (let i = 0; i < CONFIG.starCount; i++) {
+                    // 半径 115〜165 の球殻上に配置（月(カメラから約80)より遠く＝月が常に手前・粒も細かく）
+                    const r = 115 + Math.random() * 50;
+                    const th = Math.random() * Math.PI * 2;
+                    const ph = Math.acos(2 * Math.random() - 1);
+                    pos[i * 3] = r * Math.sin(ph) * Math.cos(th);
+                    pos[i * 3 + 1] = r * Math.sin(ph) * Math.sin(th);
+                    pos[i * 3 + 2] = r * Math.cos(ph);
+                    phase[i] = Math.random() * Math.PI * 2;
+                    // まだらな大きさ：下限は見える範囲に確保しつつ、細かい〜少し大きいを混ぜる
+                    size[i] = 1.0 + Math.pow(Math.random(), 1.6) * 2.2;
+                }
+                starGeo.setAttribute(
+                    "position",
+                    new THREE.BufferAttribute(pos, 3),
+                );
+                starGeo.setAttribute(
+                    "aPhase",
+                    new THREE.BufferAttribute(phase, 1),
+                );
+                starGeo.setAttribute(
+                    "aSize",
+                    new THREE.BufferAttribute(size, 1),
+                );
+            }
+            const starUniforms = {
+                uTime: { value: 0 },
+                uTreble: { value: 0 },
+                uBeat: { value: 0 },
+            };
+            const starMat = new THREE.ShaderMaterial({
+                uniforms: starUniforms,
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+                vertexShader: `
+    attribute float aPhase;
+    attribute float aSize;
+    uniform float uBeat;
+    varying float vPhase;
+    void main() {
+      vPhase = aPhase;
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      gl_PointSize = aSize * (160.0 / -mv.z) * (1.0 + uBeat * 0.7); // 拍で粒が膨らむ
+      gl_Position = projectionMatrix * mv;
+    }`,
+                fragmentShader: `
+    uniform float uTime;
+    uniform float uTreble;
+    uniform float uBeat;
+    varying float vPhase;
+    void main() {
+      float d = length(gl_PointCoord - 0.5);
+      float disk = smoothstep(0.5, 0.05, d);
+      float tw = 0.55 + 0.45 * sin(uTime * (1.2 + fract(vPhase) * 1.5) + vPhase * 7.0);
+      float amp = mix(0.5, 1.25, clamp(uTreble * 1.6, 0.0, 1.0)) + uBeat * 0.5; // 拍できらめき増（無音でも見えるよう下限UP）
+      // 星の色：青白〜白が多数、黄・橙・赤は少数（実際の星の色分布に寄せる）
+      float h = fract(vPhase * 2.17 + 0.31);
+      vec3 col;
+      if (h < 0.55) col = mix(vec3(0.62, 0.74, 1.0), vec3(1.0, 1.0, 1.0), h / 0.55);
+      else if (h < 0.80) col = mix(vec3(1.0, 1.0, 1.0), vec3(1.0, 0.88, 0.62), (h - 0.55) / 0.25);
+      else if (h < 0.93) col = mix(vec3(1.0, 0.88, 0.62), vec3(1.0, 0.62, 0.30), (h - 0.80) / 0.13);
+      else col = mix(vec3(1.0, 0.62, 0.30), vec3(1.0, 0.42, 0.34), (h - 0.93) / 0.07);
+      col *= 1.0 + smoothstep(0.78, 1.0, h) * 0.6; // 橙・赤の星をやや明るく目立たせる（赤色巨星のイメージ）
+      gl_FragColor = vec4(col, disk * tw * amp);
+    }`,
+            });
+            const starPoints = new THREE.Points(starGeo, starMat);
+            scene.add(starPoints);
+
+            // ====== UFO（昼の間、遠方をゆっくり横切る来訪者。円盤＋ドーム＋点滅リムライト。音には非連動） ======
+            const ufo = new THREE.Group();
+            const ufoLights = [];
+            {
+                // 円盤ボディ（トゥーン調・金属グレー）
+                const body = new THREE.Mesh(
+                    new THREE.SphereGeometry(1, 40, 20),
+                    new THREE.MeshToonMaterial({ color: 0x9aa6b4 }),
+                );
+                body.scale.set(1, 0.3, 1);
+                ufo.add(body);
+                // 下側のお椀（張り出し）
+                const hull = new THREE.Mesh(
+                    new THREE.SphereGeometry(
+                        0.64,
+                        32,
+                        16,
+                        0,
+                        Math.PI * 2,
+                        Math.PI / 2,
+                        Math.PI / 2,
+                    ),
+                    new THREE.MeshToonMaterial({ color: 0x6b7784 }),
+                );
+                hull.scale.set(1, 0.5, 1);
+                ufo.add(hull);
+                // ガラスドーム（発光・半透明）
+                const dome = new THREE.Mesh(
+                    new THREE.SphereGeometry(
+                        0.42,
+                        28,
+                        16,
+                        0,
+                        Math.PI * 2,
+                        0,
+                        Math.PI / 2,
+                    ),
+                    new THREE.MeshBasicMaterial({
+                        color: 0x9fe8ff,
+                        transparent: true,
+                        opacity: 0.7,
+                    }),
+                );
+                dome.position.y = 0.16;
+                ufo.add(dome);
+                // 点滅リムライト（色付き・追いかけ点滅）
+                const lightColors = [
+                    0xff5b6e, 0xffd15b, 0x5bff9d, 0x5bd0ff, 0xd08bff, 0xff5b6e,
+                    0xffd15b, 0x5bff9d,
+                ];
+                for (let i = 0; i < lightColors.length; i++) {
+                    const a = (i / lightColors.length) * Math.PI * 2;
+                    const mat = new THREE.MeshBasicMaterial({
+                        color: lightColors[i],
+                    });
+                    const bulb = new THREE.Mesh(
+                        new THREE.SphereGeometry(0.09, 12, 8),
+                        mat,
+                    );
+                    bulb.position.set(
+                        Math.cos(a) * 0.92,
+                        -0.02,
+                        Math.sin(a) * 0.92,
+                    );
+                    ufo.add(bulb);
+                    ufoLights.push({
+                        mat,
+                        base: new THREE.Color(lightColors[i]),
+                    });
+                }
+            }
+            scene.add(ufo);
+            ufo.visible = false; // 既定は非表示（本番では出さない。preview のみ表示）
+            const UFO_DIST = 60; // preview で遠方に見せる距離
+            const _WORLD_UP = new THREE.Vector3(0, 1, 0);
+            const _camFwd = new THREE.Vector3(),
+                _camRight = new THREE.Vector3(),
+                _camUp = new THREE.Vector3();
+            function updateUFOLights(t) {
+                for (let i = 0; i < ufoLights.length; i++) {
+                    // 追いかけ点滅：位相をずらした鋭いパルス
+                    const p =
+                        0.5 +
+                        0.5 *
+                            Math.sin(
+                                t * 3.0 - (i / ufoLights.length) * Math.PI * 2,
+                            );
+                    ufoLights[i].mat.color
+                        .copy(ufoLights[i].base)
+                        .multiplyScalar(0.25 + 0.75 * p * p * p);
+                }
+            }
+            function updateUFO(t, dt) {
+                if (!isPreview) {
+                    ufo.visible = false; // 本番では非表示（コミカルなので出さない）
+                    return;
+                }
+                // preview のみ：遠方を左右にゆっくり横切る小さなUFOを表示（確認用）
+                updateUFOLights(t);
+                ufo.rotation.y += dt * 0.6; // ゆっくり自転（円盤スピン）
+                ufo.rotation.z = Math.sin(t * 0.9) * 0.12; // ホバリングの傾き
+                ufo.scale.setScalar(1.2); // 小さめ（遠方に見せる）
+                ufo.visible = true;
+                camera.getWorldDirection(_camFwd);
+                _camRight.crossVectors(_camFwd, _WORLD_UP).normalize();
+                _camUp.crossVectors(_camRight, _camFwd).normalize();
+                ufo.position
+                    .copy(camera.position)
+                    .addScaledVector(_camFwd, UFO_DIST)
+                    .addScaledVector(_camRight, 40 * Math.sin(t * 0.25))
+                    .addScaledVector(_camUp, 24 + Math.sin(t * 0.8) * 2);
+            }
+
+            // ====== 地球（プロシージャル発光シェーダー） ======
+            const earthUniforms = {
+                uTime: { value: 0 },
+                uBass: { value: 0 },
+                uMid: { value: 0 },
+                uSunDir: { value: sunDir },
+            };
+            const NOISE_GLSL = `
+  float hash(vec3 p) {
+    p = fract(p * 0.3183099 + vec3(0.1, 0.2, 0.3));
+    p *= 17.0;
+    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+  }
+  float noise(vec3 x) {
+    vec3 i = floor(x); vec3 f = fract(x);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mix(hash(i),                 hash(i+vec3(1,0,0)), f.x),
+                   mix(hash(i+vec3(0,1,0)),     hash(i+vec3(1,1,0)), f.x), f.y),
+               mix(mix(hash(i+vec3(0,0,1)),     hash(i+vec3(1,0,1)), f.x),
+                   mix(hash(i+vec3(0,1,1)),     hash(i+vec3(1,1,1)), f.x), f.y), f.z);
+  }
+  float fbm(vec3 p) {
+    float v = 0.0, a = 0.5;
+    for (int i = 0; i < 5; i++) { v += a * noise(p); p *= 2.02; a *= 0.5; }
+    return v;
+  }
+  float fbm7(vec3 p) {
+    float v = 0.0, a = 0.5;
+    for (int i = 0; i < 7; i++) { v += a * noise(p); p *= 2.03; a *= 0.5; }
+    return v;
+  }`;
+
+            // ====== 天の川（背景天球にプロシージャルな銀河帯） ======
+            // 星Points(半径40-90)の外側の大きな球の内側に、銀河面に沿った淡い帯・星間雲・
+            // 暗黒帯を描く。テクスチャは使わず earthMat 共有の NOISE_GLSL で生成し、additive で
+            // 夜空に重ねる（暗部は0加算なので scene.background の暗青がそのまま残る）。
+            const milkyMat = new THREE.ShaderMaterial({
+                uniforms: { uVisible: { value: 0 } }, // 太陽が隠れているとき 0→1 にフェード
+                side: THREE.BackSide,
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+                vertexShader: `
+    varying vec3 vDir;
+    void main() {
+      vDir = normalize(position);
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`,
+                fragmentShader: `
+    varying vec3 vDir;
+    uniform float uVisible;
+    ${NOISE_GLSL}
+    // セルごとに星を1点打つ（thr 未満のセルは空。中心ほど明るい点）
+    float starLayer(vec3 d, float scale, float thr) {
+      vec3 p = d * scale;
+      vec3 cell = floor(p);
+      vec3 f = fract(p) - 0.5;
+      float h = hash(cell);
+      if (h < thr) return 0.0;
+      float r = length(f);
+      float b = fract(h * 91.7);          // 星ごとの明るさのばらつき
+      return smoothstep(0.30, 0.0, r) * (0.4 + 0.6 * b);
+    }
+    void main() {
+      vec3 d = normalize(vDir);
+      // 銀河面の法線（天球をやや傾けて帯を斜めに通す）
+      vec3 N = normalize(vec3(0.36, 0.86, 0.36));
+      float dn = dot(d, N);
+      // 中心線を fbm でゆらして蛇行させる（ガスを乗せる帯）
+      float meander = (fbm(d * 2.0) - 0.5) * 0.22;
+      float off = dn + meander;
+      float band = exp(-off * off / (2.0 * 0.13 * 0.13)); // 帯（ガスが広がる幅）
+
+      // 星間ガス：ridged noise で筋（フィラメント）構造を作り、のっぺり雲を避ける
+      float base  = fbm(d * 3.2);
+      float ridge = 1.0 - abs(2.0 * fbm(d * 5.0 + 1.3) - 1.0);
+      ridge = pow(clamp(ridge, 0.0, 1.0), 2.2);             // 筋を細く強調
+      float fine  = fbm(d * 11.0 + 4.0);
+      float gasShape = ridge * (0.35 + 0.9 * base) + fine * 0.15;
+
+      // 暗黒帯（dust lane）：2スケールの網目で星間ダストの分断を作る
+      float dust = smoothstep(0.42, 0.80, fbm(d * 7.0 + 5.0));
+      dust = max(dust, smoothstep(0.46, 0.82, fbm(d * 13.0 + 9.0)) * 0.7);
+
+      float gas = band * gasShape * (1.0 - dust * 0.88);
+
+      // ガスの色ムラ：青白 ⇄ 赤褐（HII領域）、明るいコアは白寄り
+      float hue = fbm(d * 4.0 + 10.0);
+      vec3 gasCol = mix(vec3(0.42, 0.54, 0.88), vec3(0.86, 0.46, 0.42),
+                        smoothstep(0.45, 0.72, hue));
+      gasCol = mix(gasCol, vec3(0.88, 0.84, 0.72), smoothstep(0.62, 0.9, base));
+
+      // 星粒（ガスの中に散らばる。主役はガスに譲る）
+      float s = starLayer(d, 190.0, 0.55)
+              + starLayer(d, 330.0, 0.62) * 0.85
+              + starLayer(d, 560.0, 0.70) * 0.60;
+      float dens = band * (1.0 - dust * 0.7);
+      vec3 starCol = mix(vec3(0.78, 0.85, 1.0), vec3(1.0, 0.90, 0.74),
+                         fract(d.x * 12.3 + d.y * 7.7 + d.z * 5.1));
+
+      vec3 col = gasCol * gas * 0.95       // 星間ガス（主役）
+               + starCol * s * dens * 0.7; // 星粒（散らす）
+      gl_FragColor = vec4(col * uVisible, 1.0);          // 太陽が隠れているときだけ表示
+    }`,
+            });
+            const milky = new THREE.Mesh(
+                new THREE.SphereGeometry(150, 64, 64),
+                milkyMat,
+            );
+            scene.add(milky);
+
+            // ====== 昼の光の帯（黄道光風）：夜の天の川に対応する“昼版”。太陽方向から空へ淡い暖色ヘイズ ======
+            const zodiacMat = new THREE.ShaderMaterial({
+                uniforms: {
+                    uVisible: { value: 0 }, // 昼側で 0→1
+                    uSunDir: { value: sunDir }, // 共有 sunDir（updateSunDir で更新）
+                    uTime: { value: 0 },
+                },
+                side: THREE.BackSide,
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+                vertexShader: `
+    varying vec3 vDir;
+    void main() {
+      vDir = normalize(position);
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`,
+                fragmentShader: `
+    varying vec3 vDir;
+    uniform float uVisible;
+    uniform float uTime;
+    uniform vec3 uSunDir;
+    ${NOISE_GLSL}
+    void main() {
+      vec3 d = normalize(vDir);
+      vec3 S = normalize(uSunDir);
+      float sa = dot(d, S);
+      // 太陽方向へ強く引っ張られる濃淡（近いほど濃い）＋ごく薄い全天ベース
+      float sunward = 0.12 + 0.88 * pow(clamp(sa * 0.5 + 0.5, 0.0, 1.0), 3.0);
+      // やや細めの帯＋fbm でムラ
+      vec3 N = normalize(vec3(0.2, 1.0, 0.15));
+      float off = dot(d, N);
+      float band = exp(-off * off / (2.0 * 0.38 * 0.38));
+      float structure = 0.5 + 0.5 * fbm(d * 2.5 + vec3(uTime * 0.02)); // ゆっくり流れるムラ
+      float amt = sunward * (0.45 + 0.55 * band) * structure;
+      vec3 col = vec3(1.0, 0.91, 0.80) * amt * 0.42; // 暖色白・少し薄め
+      gl_FragColor = vec4(col * uVisible, 1.0);
+    }`,
+            });
+            const zodiac = new THREE.Mesh(
+                new THREE.SphereGeometry(148, 48, 48),
+                zodiacMat,
+            );
+            scene.add(zodiac);
+
+            // ====== 月（昼空にそっと浮かぶ静かな天体。太陽光で満ち欠け） ======
+            const moonVert = `
+    varying vec3 vObjPos;
+    varying vec3 vWorldNormal;
+    void main() {
+      vObjPos = normalize(position);
+      vWorldNormal = normalize(mat3(modelMatrix) * normal);
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`;
+            const moonFrag = `
+    uniform vec3 uSunDir;
+    uniform float uAlpha;
+    varying vec3 vObjPos;
+    varying vec3 vWorldNormal;
+    ${NOISE_GLSL}
+    void main() {
+      // 表面：灰色ベース＋暗い海(maria)＋細かいむら
+      float m = fbm(vObjPos * 2.4);
+      float maria = smoothstep(0.55, 0.30, m);
+      float crater = fbm(vObjPos * 14.0) * 0.12;
+      vec3 base = mix(vec3(0.62, 0.60, 0.57), vec3(0.34, 0.34, 0.36), maria);
+      base *= (0.92 + crater);
+      // 太陽光ライティング（満ち欠け）。裏側もわずかに残す
+      float lit = clamp(dot(normalize(vWorldNormal), normalize(uSunDir)), 0.0, 1.0);
+      float shade = 0.14 + 0.86 * smoothstep(0.0, 0.25, lit); // 暗い面も地球照でうっすら残す（消えないように）
+      gl_FragColor = vec4(base * shade, uAlpha);
+    }`;
+            const moonMat = new THREE.ShaderMaterial({
+                uniforms: {
+                    uSunDir: { value: sunDir },
+                    uAlpha: { value: 1.0 },
+                },
+                vertexShader: moonVert,
+                fragmentShader: moonFrag,
+            });
+            const MOON_R = 0.5; // 月の球サイズ（半径）
+            const moon = new THREE.Mesh(
+                new THREE.SphereGeometry(MOON_R, 48, 48),
+                moonMat,
+            );
+            let moonAng = 1.1; // 公転の初期角
+            const MOON_ORBIT_R = 20; // 公転半径（地球中心まわり）
+            // 月の位置：太陽と同じ軌道面を earthCenter まわりに公転（太陽の subsolar と同じ式で経度だけ moonAng）。
+            const _moonLocal = new THREE.Vector3();
+            function moonPositionAt(ang, out) {
+                const cd = Math.cos(sunDecl);
+                _moonLocal.set(
+                    cd * Math.cos(ang),
+                    Math.sin(sunDecl),
+                    -cd * Math.sin(ang),
+                );
+                return out
+                    .copy(_moonLocal)
+                    .applyQuaternion(earth.quaternion)
+                    .multiplyScalar(MOON_ORBIT_R)
+                    .add(earthCenter);
+            }
+            scene.add(moon);
+
+            const earthMat = new THREE.ShaderMaterial({
+                uniforms: earthUniforms,
+                vertexShader: `
+    varying vec3 vObjPos;
+    varying vec3 vWorldNormal;
+    varying vec3 vViewNormal;
+    varying vec3 vViewPos;
+    void main() {
+      vObjPos = normalize(position);
+      vWorldNormal = normalize(mat3(modelMatrix) * normal);
+      vViewNormal = normalize(normalMatrix * normal);
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      vViewPos = mv.xyz;
+      gl_Position = projectionMatrix * mv;
+    }`,
+                fragmentShader: `
+    uniform float uTime;
+    uniform float uBass;
+    uniform float uMid;
+    uniform vec3 uSunDir;
+    varying vec3 vObjPos;
+    varying vec3 vWorldNormal;
+    varying vec3 vViewNormal;
+    varying vec3 vViewPos;
+    ${NOISE_GLSL}
+    void main() {
+      vec3 p = vObjPos;
+      // ドメインワーピング：入り組んだリアルな海岸線を作る
+      vec3 q = vec3(fbm(p * 1.3), fbm(p * 1.3 + vec3(5.2, 1.3, 2.8)), fbm(p * 1.3 + vec3(1.7, 9.2, 4.1)));
+      float cont = fbm7(p * 2.6 + q * 1.2);
+      float land = smoothstep(0.615, 0.635, cont);             // くっきりした海岸線（海:陸≈7:3）
+      float coast = smoothstep(0.56, 0.615, cont) * (1.0 - land); // 大陸棚の浅瀬
+
+      // 海：深さのムラ + 浅瀬のターコイズ
+      float od = fbm(p * 6.0 + 13.0);
+      vec3 ocean = mix(vec3(0.02, 0.10, 0.30), vec3(0.04, 0.28, 0.50), od);
+      ocean = mix(ocean, vec3(0.05, 0.42, 0.52), coast * 0.8);
+
+      // 陸：植生・乾燥帯・山岳・雪のディテール
+      float terr = fbm7(p * 8.0 + 7.7);
+      float arid = fbm(p * 3.1 + 21.0);
+      vec3 veg = mix(vec3(0.09, 0.38, 0.15), vec3(0.22, 0.50, 0.18), terr);
+      vec3 dry = mix(vec3(0.48, 0.38, 0.18), vec3(0.62, 0.52, 0.30), terr);
+      vec3 landC = mix(veg, dry, smoothstep(0.42, 0.66, arid));
+      landC = mix(landC, vec3(0.50, 0.47, 0.42), smoothstep(0.62, 0.80, terr) * 0.7); // 山岳
+      float snow = smoothstep(0.80, 0.90, abs(p.y) + terr * 0.16);                    // 高山・高緯度の雪
+      landC = mix(landC, vec3(0.92, 0.95, 0.98), snow);
+
+      float polar = smoothstep(0.88, 0.96, abs(p.y));
+      vec3 base = mix(ocean, landC, land);
+      base = mix(base, vec3(0.90, 0.94, 0.98), polar);
+
+      // 雲：渦を巻く2層構造でゆっくり流れる
+      float cw = fbm(p * 3.0 + vec3(uTime * 0.010));
+      float cl = fbm7(p * 4.2 + vec3(uTime * 0.012, 0.0, uTime * 0.007) + cw * 1.2);
+      float clouds = smoothstep(0.61, 0.80, cl); // 局所的な雲系だけ残す
+
+      // 昼夜 + 明暗境界（朝夕）の赤み
+      float day = clamp(dot(vWorldNormal, uSunDir), 0.0, 1.0);
+      float dusk = smoothstep(0.0, 0.18, day) * (1.0 - smoothstep(0.18, 0.45, day));
+      vec3 col = base * (0.10 + 1.15 * day);
+      col += vec3(0.90, 0.45, 0.20) * dusk * 0.25;
+      col = mix(col, vec3(0.90, 0.93, 0.97) * (0.30 + 0.95 * day), clouds * 0.7);
+
+      // 夜の街明かり（低音で強まる・雲の下では減光）
+      float night = 1.0 - smoothstep(0.0, 0.25, day);
+      float lights = smoothstep(0.70, 0.78, noise(p * 90.0)) * land * (1.0 - clouds * 0.8) * night;
+      col += vec3(1.0, 0.72, 0.40) * lights * (0.8 + uBass * 2.2);
+
+      // 大気フレネル発光（低音で脈動、中音で色相が遷移）
+      // リム発光は縁に集中させる（指数を上げて地表の青白い被りを防ぐ）
+      vec3 viewDir = normalize(-vViewPos);
+      float fres = pow(1.0 - clamp(dot(viewDir, normalize(vViewNormal)), 0.0, 1.0), 4.5);
+      vec3 atmA = vec3(0.25, 0.55, 1.0);
+      vec3 atmB = vec3(0.30, 0.95, 0.75);
+      col += mix(atmA, atmB, clamp(uMid * 1.4, 0.0, 1.0)) * fres * (1.2 + uBass * 2.0);
+
+      // 全体の発光底上げ
+      col += base * uBass * 0.18;
+      gl_FragColor = vec4(col, 1.0);
+    }`,
+            });
+            const earth = new THREE.Mesh(
+                new THREE.SphereGeometry(CONFIG.earthRadius, 160, 160),
+                earthMat,
+            );
+            earth.position.set(...CONFIG.earthPos);
+            // x: 地軸をカメラから倒し、極地ではなく赤道〜温帯が見えるように
+            // y: 初期経度 2.4 ≈ 日本列島が見える面から始まり、自転で西へ巡る
+            // x=-0.5: 軸の傾きを浅くして本州〜北日本まで見えるように（開始＝日本上空）
+            // y=3.9: 初期経度。日本列島が中央に来る。自転(tourSpin)で西＝ユーラシアへ巡る
+            earth.rotation.set(-0.5, 3.7, 0);
+            const ryOverride = location.search.match(/ry=([-\d.]+)/);
+            if (ryOverride) earth.rotation.y = parseFloat(ryOverride[1]); // 撮影確認用：初期経度の上書き
+            scene.add(earth);
+
+            // ====== ビジュアライザー要素（ビート連動：流星 / 波紋リング / 極オーロラ） ======
+            const earthCenter = new THREE.Vector3(...CONFIG.earthPos);
+
+            // 流星：強いビートで星殻上を流れる短い光跡（LineSegments プール）
+            const METEOR_N = 8;
+            const meteorGeo = new THREE.BufferGeometry();
+            const meteorPos = new Float32Array(METEOR_N * 2 * 3);
+            const meteorAlpha = new Float32Array(METEOR_N * 2);
+            meteorGeo.setAttribute(
+                "position",
+                new THREE.BufferAttribute(meteorPos, 3),
+            );
+            meteorGeo.setAttribute(
+                "aAlpha",
+                new THREE.BufferAttribute(meteorAlpha, 1),
+            );
+            const meteors = new THREE.LineSegments(
+                meteorGeo,
+                new THREE.ShaderMaterial({
+                    transparent: true,
+                    depthWrite: false,
+                    blending: THREE.AdditiveBlending,
+                    vertexShader: `attribute float aAlpha; varying float vA;
+    void main(){ vA = aAlpha; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+                    fragmentShader: `varying float vA; void main(){ gl_FragColor = vec4(vec3(0.85, 0.92, 1.0) * vA, vA); }`,
+                }),
+            );
+            meteors.frustumCulled = false;
+            scene.add(meteors);
+            const meteorState = [];
+            for (let i = 0; i < METEOR_N; i++)
+                meteorState.push({
+                    active: false,
+                    life: 0,
+                    vx: 0,
+                    vy: 0,
+                    vz: 0,
+                    hx: 0,
+                    hy: 0,
+                    hz: 0,
+                });
+            function spawnMeteor() {
+                const m = meteorState.find((s) => !s.active);
+                if (!m) return;
+                // カメラ視界内に出して斜めに流す（入る側・高さ・距離・向きはランダムで自然に）
+                camera.getWorldDirection(_camFwd);
+                _camRight.crossVectors(_camFwd, _WORLD_UP).normalize();
+                _camUp.crossVectors(_camRight, _camFwd).normalize();
+                const D = 34 + Math.random() * 26; // 距離34〜60（遠近でサイズにばらつき）
+                const side = Math.random() < 0.5 ? -1 : 1; // 左右どちらから入るか
+                const ox = side * (10 + Math.random() * 12); // 画面端寄りから開始
+                const oy = 8 + Math.random() * 12; // 上空の高さ
+                m.hx =
+                    camera.position.x +
+                    _camFwd.x * D +
+                    _camRight.x * ox +
+                    _camUp.x * oy;
+                m.hy =
+                    camera.position.y +
+                    _camFwd.y * D +
+                    _camRight.y * ox +
+                    _camUp.y * oy;
+                m.hz =
+                    camera.position.z +
+                    _camFwd.z * D +
+                    _camRight.z * ox +
+                    _camUp.z * oy;
+                const sp = 20 + Math.random() * 16;
+                // 画面上で内向き（入った側と逆）＋下向きに流れる向きを world 空間へ
+                const rx = -side * (0.6 + Math.random() * 0.5),
+                    uy = -(0.7 + Math.random() * 0.6);
+                const dx = _camRight.x * rx + _camUp.x * uy,
+                    dy = _camRight.y * rx + _camUp.y * uy,
+                    dz = _camRight.z * rx + _camUp.z * uy;
+                const dl = Math.hypot(dx, dy, dz) || 1;
+                m.vx = (dx / dl) * sp;
+                m.vy = (dy / dl) * sp;
+                m.vz = (dz / dl) * sp;
+                m.life = 1;
+                m.active = true;
+            }
+            function updateMeteors(dt) {
+                for (let i = 0; i < METEOR_N; i++) {
+                    const m = meteorState[i],
+                        o = i * 6,
+                        oa = i * 2;
+                    if (!m.active) continue;
+                    m.life -= dt / 1.1;
+                    if (m.life <= 0) {
+                        m.active = false;
+                        meteorAlpha[oa] = 0;
+                        meteorAlpha[oa + 1] = 0;
+                        continue;
+                    }
+                    m.hx += m.vx * dt;
+                    m.hy += m.vy * dt;
+                    m.hz += m.vz * dt;
+                    const nl = Math.hypot(m.vx, m.vy, m.vz) || 1,
+                        tl = 3.5;
+                    meteorPos[o] = m.hx;
+                    meteorPos[o + 1] = m.hy;
+                    meteorPos[o + 2] = m.hz;
+                    meteorPos[o + 3] = m.hx - (m.vx / nl) * tl;
+                    meteorPos[o + 4] = m.hy - (m.vy / nl) * tl;
+                    meteorPos[o + 5] = m.hz - (m.vz / nl) * tl;
+                    meteorAlpha[oa] = m.life;
+                    meteorAlpha[oa + 1] = 0.0; // 頭=明、尾=透明
+                }
+                meteorGeo.attributes.position.needsUpdate = true;
+                meteorGeo.attributes.aAlpha.needsUpdate = true;
+            }
+            let ambientMeteorTimer = isPreview ? 0.15 : 4; // 無音でも流れ星を出すタイマー（preview は即・以降高頻度）
+
+            // 波紋リング：ビートで地球から広がる光輪（ビルボード・additive プール）
+            const RING_N = 4;
+            const ringGeoBase = new THREE.RingGeometry(0.8, 1.0, 72);
+            const ringPool = [];
+            for (let i = 0; i < RING_N; i++) {
+                const mat = new THREE.MeshBasicMaterial({
+                    color: 0x6fb3ff,
+                    transparent: true,
+                    opacity: 0,
+                    side: THREE.DoubleSide,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false,
+                });
+                const mesh = new THREE.Mesh(ringGeoBase, mat);
+                mesh.position.copy(earthCenter);
+                mesh.visible = false;
+                scene.add(mesh);
+                ringPool.push({ mesh, mat, life: 0, strength: 0 });
+            }
+            function spawnRing(strength) {
+                const r = ringPool.find((x) => x.life <= 0);
+                if (!r) return;
+                r.life = 1;
+                r.strength = strength;
+                r.mesh.visible = true;
+            }
+            function updateRings() {
+                for (const r of ringPool) {
+                    if (r.life <= 0) continue;
+                    r.life -= 0.016 / 1.4; // 約1.4秒で消える（フレーム非依存ほどではないが十分）
+                    if (r.life <= 0) {
+                        r.mesh.visible = false;
+                        continue;
+                    }
+                    const p = 1 - r.life;
+                    const s = CONFIG.earthRadius * (1.02 + p * 0.55); // 縁の少し外まで広がる波紋ハロー
+                    r.mesh.scale.set(s, s, s);
+                    r.mesh.quaternion.copy(camera.quaternion); // ビルボード
+                    r.mat.opacity = (1 - p) * 0.7 * (0.5 + r.strength * 0.5);
+                }
+            }
+
+            // 極オーロラ：地球の極に立ち上がる光のカーテン（earth の子・自転で出入り）
+            function makeAurora(sign) {
+                const R = CONFIG.earthRadius;
+                const geo = new THREE.CylinderGeometry(
+                    R * 0.55,
+                    R * 0.74,
+                    R * 0.5,
+                    96,
+                    1,
+                    true,
+                );
+                const mat = new THREE.ShaderMaterial({
+                    transparent: true,
+                    depthWrite: false,
+                    blending: THREE.AdditiveBlending,
+                    side: THREE.DoubleSide,
+                    uniforms: { uTime: { value: 0 }, uAudio: { value: 0 } },
+                    vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+                    fragmentShader: `
+      uniform float uTime; uniform float uAudio; varying vec2 vUv;
+      ${NOISE_GLSL}
+      void main(){
+        float curtain = fbm(vec3(vUv.x * 16.0, vUv.y * 3.0 - uTime * 0.15, uTime * 0.05));
+        float streak = smoothstep(0.35, 0.85, curtain);
+        float vfade = smoothstep(0.0, 0.25, vUv.y) * (1.0 - smoothstep(0.6, 1.0, vUv.y));
+        vec3 col = mix(vec3(0.2, 0.95, 0.5), vec3(0.3, 0.6, 1.0), vUv.y); // 緑→青
+        float a = streak * vfade * (0.35 + uAudio * 0.8);
+        gl_FragColor = vec4(col * a, a);
+      }`,
+                });
+                const m = new THREE.Mesh(geo, mat);
+                m.position.y = sign * R * 0.92; // 緯度~42°の地表から立ち上がる（極は地平線の向こうで見えないため可視域へ）
+                if (sign < 0) m.rotation.x = Math.PI;
+                earth.add(m);
+                return mat;
+            }
+            const auroraN = makeAurora(1),
+                auroraS = makeAurora(-1);
+
+            // ====== 見える太陽（表面シェーダー＋彩層リム＋グロー）と遮蔽シーン ======
+            // sunGroup を sunDir 方向の遠方に置き、カメラが地球の裏に回ると地球が太陽を覆って
+            // 日食になる。ゴッドレイ用に「太陽=明/地球=黒」の occScene も用意する。
+            const SUN_DIST = 80; // 地球中心からの太陽距離（star殻r40-90内・far200以内）
+            const SUN_RADIUS = 7.0; // 太陽コア半径（視半径≈4° → 地球r7に覆われる）
+            const sunPivot = new THREE.Vector3(...CONFIG.earthPos);
+
+            // 太陽コア：Perlin/fbm による炎のうねり（自発光）
+            const sunCoreMat = new THREE.ShaderMaterial({
+                // 縁をフレネルでフェードさせる柔らかい発光オーブ（硬い円盤シルエットを出さない）
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+                side: THREE.FrontSide,
+                uniforms: { uTime: { value: 0 }, uBright: { value: 1.0 } },
+                vertexShader: `
+    varying vec3 vPos;
+    varying vec3 vN;
+    varying vec3 vView;
+    void main() {
+      vPos = position;
+      vN = normalize(normalMatrix * normal);
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      vView = mv.xyz;
+      gl_Position = projectionMatrix * mv;
+    }`,
+                fragmentShader: `
+    uniform float uTime;
+    uniform float uBright;
+    varying vec3 vPos;
+    varying vec3 vN;
+    varying vec3 vView;
+    float hash(vec3 p){ p = fract(p*0.3183099 + vec3(0.1,0.2,0.3)); p *= 17.0; return fract(p.x*p.y*p.z*(p.x+p.y+p.z)); }
+    float noise(vec3 x){
+      vec3 i = floor(x); vec3 f = fract(x); f = f*f*(3.0-2.0*f);
+      return mix(mix(mix(hash(i),hash(i+vec3(1,0,0)),f.x),mix(hash(i+vec3(0,1,0)),hash(i+vec3(1,1,0)),f.x),f.y),
+                 mix(mix(hash(i+vec3(0,0,1)),hash(i+vec3(1,0,1)),f.x),mix(hash(i+vec3(0,1,1)),hash(i+vec3(1,1,1)),f.x),f.y),f.z);
+    }
+    float fbm(vec3 p){ float v=0.0,a=0.5; for(int i=0;i<6;i++){ v+=a*noise(p); p*=2.03; a*=0.5; } return v; }
+    void main(){
+      vec3 p = normalize(vPos);
+      float n1 = fbm(p*3.0 + vec3(0.0, uTime*0.06, 0.0));
+      float n2 = fbm(p*7.5 - vec3(uTime*0.10, 0.0, uTime*0.05));
+      float h = n1*0.6 + n2*0.4;
+      vec3 cool = vec3(0.95, 0.30, 0.06);
+      vec3 mid  = vec3(1.0, 0.62, 0.20);
+      vec3 hot  = vec3(1.0, 0.96, 0.80);
+      vec3 col = mix(cool, mid, smoothstep(0.30, 0.60, h));
+      col = mix(col, hot, smoothstep(0.62, 0.95, h));
+      col *= (0.80 + uBright * 0.35);
+      // 視線に対する正対度（中心=1, 縁=0）で外周を透明にフェード→硬い輪郭を消す
+      float f = clamp(dot(normalize(vN), normalize(-vView)), 0.0, 1.0);
+      float edge = smoothstep(0.0, 0.55, f);
+      gl_FragColor = vec4(col, edge);
+    }`,
+            });
+            const sunCore = new THREE.Mesh(
+                new THREE.SphereGeometry(SUN_RADIUS, 96, 96),
+                sunCoreMat,
+            );
+
+            // 彩層（chromosphere）：外周だけ光るリム（BackSide・加算）
+            const chromoMat = new THREE.ShaderMaterial({
+                uniforms: { uBright: { value: 1.0 } },
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+                side: THREE.BackSide,
+                vertexShader: `
+    varying vec3 vN; varying vec3 vView;
+    void main(){
+      vN = normalize(normalMatrix * normal);
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      vView = mv.xyz;
+      gl_Position = projectionMatrix * mv;
+    }`,
+                fragmentShader: `
+    uniform float uBright;
+    varying vec3 vN; varying vec3 vView;
+    void main(){
+      float rim = pow(1.0 - abs(dot(normalize(-vView), normalize(vN))), 1.4); // 広く柔らかいフォール
+      vec3 col = mix(vec3(1.0,0.45,0.15), vec3(1.0,0.78,0.40), rim);
+      gl_FragColor = vec4(col, rim * (0.5 + uBright * 0.35)); // 鋭い明環にしない
+    }`,
+            });
+            const chromo = new THREE.Mesh(
+                new THREE.SphereGeometry(SUN_RADIUS * 1.06, 64, 64),
+                chromoMat,
+            );
+
+            // グロースプライト：放射グラデのテクスチャを加算で2枚重ねる
+            function glowTexture(stops) {
+                const s = 256,
+                    c = document.createElement("canvas");
+                c.width = c.height = s;
+                const ctx = c.getContext("2d");
+                const g = ctx.createRadialGradient(
+                    s / 2,
+                    s / 2,
+                    0,
+                    s / 2,
+                    s / 2,
+                    s / 2,
+                );
+                stops.forEach((st) => g.addColorStop(st[0], st[1]));
+                ctx.fillStyle = g;
+                ctx.fillRect(0, 0, s, s);
+                const tex = new THREE.CanvasTexture(c);
+                tex.needsUpdate = true;
+                return tex;
+            }
+            function makeGlow(tex, scale) {
+                const sp = new THREE.Sprite(
+                    new THREE.SpriteMaterial({
+                        map: tex,
+                        blending: THREE.AdditiveBlending,
+                        transparent: true,
+                        depthWrite: false,
+                        depthTest: true,
+                    }),
+                );
+                sp.scale.set(scale, scale, 1);
+                return sp;
+            }
+            // ワールド空間のグロー。ブルーム/ゴッドレイ（スクリーンスペース）は太陽が画面外に
+            // 出ると効かなくなるため、画面端〜枠外での輝きはこのスプライトが担う（強め・大きめ）。
+            const innerGlow = makeGlow(
+                glowTexture([
+                    [0.0, "rgba(255,240,210,0.75)"],
+                    [0.25, "rgba(255,195,115,0.40)"],
+                    [0.55, "rgba(255,140,60,0.15)"],
+                    [1.0, "rgba(255,120,40,0.0)"],
+                ]),
+                SUN_RADIUS * 3.5,
+            );
+            const outerGlow = makeGlow(
+                glowTexture([
+                    [0.0, "rgba(255,210,150,0.35)"],
+                    [0.4, "rgba(255,150,70,0.14)"],
+                    [1.0, "rgba(255,120,40,0.0)"],
+                ]),
+                SUN_RADIUS * 10.0,
+            );
+
+            const sunGroup = new THREE.Group();
+            sunGroup.add(sunCore, chromo, innerGlow, outerGlow);
+            scene.add(sunGroup);
+
+            // 遮蔽シーン：太陽=白・地球=黒。深度で地球が太陽を欠けさせる＝日食をゴッドレイに伝える
+            const occScene = new THREE.Scene();
+            occScene.background = new THREE.Color(0x000000);
+            const occEarth = new THREE.Mesh(
+                earth.geometry,
+                new THREE.MeshBasicMaterial({ color: 0x000000 }),
+            );
+            const occSun = new THREE.Mesh(
+                sunCore.geometry,
+                new THREE.MeshBasicMaterial({ color: 0xffffff }),
+            );
+            occScene.add(occEarth, occSun);
+
+            // ====== 太陽：実際にいま地球に当たっている光を再現 ======
+            // 太陽直下点（経度 ≈ (12-UTC時)×15°、緯度 = 季節の赤緯）を地球の姿勢で
+            // ワールド方向に変換して光源方向にする。sunDir は各シェーダーと共有
+            const subsolarObj = new THREE.Vector3();
+            let sunDecl = 0; // 太陽の赤緯（季節による）。月の公転面を太陽に一致させるため共有。
+            // ?time=HH:MM（当日のローカル時刻）または ?time=2026-07-02T18:00（ISO日時）で
+            // 開始時刻を指定できる。指定時刻との差分をオフセットとして保持し、以降は通常速度で進む。
+            const timeParam = new URLSearchParams(location.search).get("time");
+            let timeOffsetMs = 0;
+            if (timeParam) {
+                const hm = timeParam.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+                let target = null;
+                if (hm) {
+                    target = new Date();
+                    target.setHours(+hm[1], +hm[2], +(hm[3] || 0), 0);
+                } else {
+                    const d = new Date(timeParam);
+                    if (!isNaN(d.getTime())) target = d;
+                }
+                if (target) timeOffsetMs = target.getTime() - Date.now();
+            }
+            function updateSunDir() {
+                const now = new Date(Date.now() + timeOffsetMs);
+                const utcH =
+                    now.getUTCHours() +
+                    now.getUTCMinutes() / 60 +
+                    now.getUTCSeconds() / 3600;
+                const lon = ((12 - utcH) * 15 * Math.PI) / 180;
+                const doy =
+                    (now.getTime() - Date.UTC(now.getUTCFullYear(), 0, 0)) /
+                    86400000;
+                const decl =
+                    ((23.44 * Math.PI) / 180) *
+                    Math.sin((2 * Math.PI * (doy - 81)) / 365.25);
+                sunDecl = decl; // 月の公転面（太陽と同一の赤緯円）で参照
+                subsolarObj.set(
+                    Math.cos(decl) * Math.cos(lon),
+                    Math.sin(decl),
+                    -Math.cos(decl) * Math.sin(lon),
+                );
+                sunDir
+                    .copy(subsolarObj)
+                    .applyQuaternion(earth.quaternion)
+                    .normalize();
+                sun.position.copy(sunDir).multiplyScalar(50);
+                // 見える太陽は地球中心から sunDir 方向の遠方へ（地球の裏に回ると日食になる距離）
+                sunGroup.position
+                    .copy(sunDir)
+                    .multiplyScalar(SUN_DIST)
+                    .add(sunPivot);
+            }
+            updateSunDir();
+
+            // 大気ハロー（外側の発光殻）
+            const atmoUniforms = { uBass: { value: 0 }, uMid: { value: 0 } };
+            const atmoMat = new THREE.ShaderMaterial({
+                uniforms: atmoUniforms,
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+                // 裏面のみ描画：地球本体に遮蔽され、発光がリムの外側だけに残る
+                side: THREE.BackSide,
+                vertexShader: `
+    varying vec3 vViewNormal;
+    varying vec3 vViewPos;
+    void main() {
+      vViewNormal = normalize(normalMatrix * normal);
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      vViewPos = mv.xyz;
+      gl_Position = projectionMatrix * mv;
+    }`,
+                fragmentShader: `
+    uniform float uBass;
+    uniform float uMid;
+    varying vec3 vViewNormal;
+    varying vec3 vViewPos;
+    void main() {
+      vec3 viewDir = normalize(-vViewPos);
+      float rim = pow(1.0 - abs(dot(viewDir, normalize(vViewNormal))), 2.5);
+      vec3 col = mix(vec3(0.25, 0.55, 1.0), vec3(0.35, 0.95, 0.80), clamp(uMid * 1.4, 0.0, 1.0));
+      gl_FragColor = vec4(col, rim * (0.85 + uBass * 1.5));
+    }`,
+            });
+            const atmo = new THREE.Mesh(
+                new THREE.SphereGeometry(CONFIG.earthRadius * 1.1, 96, 96),
+                atmoMat,
+            );
+            atmo.position.copy(earth.position);
+            scene.add(atmo);
+
+            // ====== 高精細テクスチャ地球（NASA系8K素材。読み込めたらプロシージャルから差し替え） ======
+            const earthTexUniforms = {
+                uBass: { value: 0 },
+                uMid: { value: 0 },
+                uSunDir: { value: sunDir },
+                uSunDirView: { value: sunDir.clone() },
+                tDay: { value: null },
+                tNight: { value: null },
+                tSpec: { value: null },
+            };
+            const earthTexMat = new THREE.ShaderMaterial({
+                uniforms: earthTexUniforms,
+                vertexShader: `
+    varying vec2 vUv;
+    varying vec3 vWorldNormal;
+    varying vec3 vViewNormal;
+    varying vec3 vViewPos;
+    void main() {
+      vUv = uv;
+      vWorldNormal = normalize(mat3(modelMatrix) * normal);
+      vViewNormal = normalize(normalMatrix * normal);
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      vViewPos = mv.xyz;
+      gl_Position = projectionMatrix * mv;
+    }`,
+                fragmentShader: `
+    uniform sampler2D tDay;
+    uniform sampler2D tNight;
+    uniform sampler2D tSpec;
+    uniform float uBass;
+    uniform float uMid;
+    uniform vec3 uSunDir;
+    uniform vec3 uSunDirView;
+    varying vec2 vUv;
+    varying vec3 vWorldNormal;
+    varying vec3 vViewNormal;
+    varying vec3 vViewPos;
+    void main() {
+      vec3 day = texture2D(tDay, vUv).rgb;
+      vec3 night = texture2D(tNight, vUv).rgb;
+      float specMask = texture2D(tSpec, vUv).r;
+      float sd = dot(normalize(vWorldNormal), uSunDir);
+      float dayF = smoothstep(-0.08, 0.25, sd);
+      float dusk = smoothstep(-0.12, 0.05, sd) * (1.0 - smoothstep(0.05, 0.30, sd));
+      vec3 col = day * (0.030 + 0.80 * dayF); // 夜面はほぼ漆黒に（街明かりとリム光だけ残す）
+      col += day * vec3(0.90, 0.40, 0.18) * dusk * 0.8;   // 明暗境界の赤み
+      col += night * (1.0 - dayF) * (0.9 + uBass * 1.8);   // 夜の街明かり（低音で脈動）
+      // 海面の太陽光反射（スペキュラマスク）
+      vec3 viewDir = normalize(-vViewPos);
+      vec3 Nv = normalize(vViewNormal);
+      vec3 R = reflect(-uSunDirView, Nv);
+      col += vec3(1.0, 0.92, 0.75) * pow(max(dot(R, viewDir), 0.0), 34.0) * specMask * dayF * 0.55;
+      // 大気フレネル発光（低音で脈動、中音で色相が遷移）
+      float fres = pow(1.0 - clamp(dot(viewDir, Nv), 0.0, 1.0), 4.5);
+      col += mix(vec3(0.25, 0.55, 1.0), vec3(0.30, 0.95, 0.75), clamp(uMid * 1.4, 0.0, 1.0)) * fres * (1.2 + uBass * 2.0);
+      col += day * uBass * 0.15;
+      gl_FragColor = vec4(col, 1.0);
+    }`,
+            });
+            // 雲レイヤー（本体よりわずかに大きい球を別速度で回す）
+            const cloudUniforms = {
+                uSunDir: { value: sunDir },
+                tCloud: { value: null },
+                uTime: { value: 0 },
+            };
+            const cloudMat = new THREE.ShaderMaterial({
+                uniforms: cloudUniforms,
+                transparent: true,
+                depthWrite: false,
+                vertexShader: `
+    varying vec2 vUv;
+    varying vec3 vWorldNormal;
+    void main() {
+      vUv = uv;
+      vWorldNormal = normalize(mat3(modelMatrix) * normal);
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`,
+                fragmentShader: `
+    uniform sampler2D tCloud;
+    uniform vec3 uSunDir;
+    uniform float uTime;
+    varying vec2 vUv;
+    varying vec3 vWorldNormal;
+    ${NOISE_GLSL}
+    void main() {
+      vec3 wp = normalize(vWorldNormal);
+      // ゆっくり churn：法線ベースの fbm で UV を微小に揺らす（継ぎ目を避ける）
+      float wobble = fbm(wp * 2.2 + vec3(uTime * 0.02, 0.0, uTime * 0.013)) - 0.5;
+      float lum = texture2D(tCloud, vUv + wobble * 0.012).r;
+      float dayF = smoothstep(-0.08, 0.25, dot(wp, uSunDir));
+      gl_FragColor = vec4(vec3(0.045 + 1.05 * dayF), lum * 0.85);
+    }`,
+            });
+            const clouds = new THREE.Mesh(
+                new THREE.SphereGeometry(CONFIG.earthRadius * 1.006, 128, 128),
+                cloudMat,
+            );
+            clouds.position.copy(earth.position);
+            clouds.rotation.copy(earth.rotation);
+            let texturedEarth = false;
+            {
+                const loader = new THREE.TextureLoader();
+                const maxAniso = renderer.capabilities.getMaxAnisotropy();
+                const load = (url) =>
+                    new Promise((res, rej) =>
+                        loader.load(
+                            url,
+                            (t) => {
+                                t.anisotropy = maxAniso;
+                                res(t);
+                            },
+                            undefined,
+                            rej,
+                        ),
+                    );
+                Promise.all([
+                    load("./textures/earth_day_8k.jpg"),
+                    load("./textures/earth_night_4k.jpg"),
+                    load("./textures/earth_spec_2k.jpg"),
+                    load("./textures/earth_clouds_4k.jpg"),
+                ])
+                    .then(([d, n, s, c]) => {
+                        earthTexUniforms.tDay.value = d;
+                        earthTexUniforms.tNight.value = n;
+                        earthTexUniforms.tSpec.value = s;
+                        cloudUniforms.tCloud.value = c;
+                        earth.material = earthTexMat;
+                        scene.add(clouds);
+                        texturedEarth = true;
+                    })
+                    .catch(() => {
+                        /* file:// 等で読めない環境ではプロシージャル地球のまま動かす */
+                    });
+            }
+
+            // ====== 黄色い熊（プリミティブによるコード造形・トゥーン調） ======
+            const gradientMap = (() => {
+                const data = new Uint8Array([80, 160, 255]);
+                const tex = new THREE.DataTexture(data, 3, 1, THREE.RedFormat);
+                tex.minFilter = THREE.NearestFilter;
+                tex.magFilter = THREE.NearestFilter;
+                tex.needsUpdate = true;
+                return tex;
+            })();
+            const matBear = new THREE.MeshToonMaterial({
+                color: CONFIG.bearColor,
+                gradientMap,
+            });
+            const matShirt = new THREE.MeshToonMaterial({
+                color: CONFIG.shirtColor,
+                gradientMap,
+            });
+            const matSuit = new THREE.MeshToonMaterial({
+                color: 0xdfe5ec,
+                gradientMap,
+            });
+
+            // 顔：原画の「ゆるい手描き顔」をCanvasに描き、頭の球にテクスチャとして貼る
+            // （点目・小さな鼻・ωの口。マズルの出っ張りなしの平面的な顔が原画の特徴）
+            function makeFaceTexture(blink) {
+                const cv = document.createElement("canvas");
+                cv.width = 1024;
+                cv.height = 512; // 球のequirectangular展開。中央(512)が顔の正面
+                const g = cv.getContext("2d");
+                g.fillStyle = "#ffffff";
+                g.fillRect(0, 0, 1024, 512);
+                g.fillStyle = "#332b22";
+                g.strokeStyle = "#332b22";
+                g.lineCap = "round";
+                if (blink) {
+                    // 閉じた目：下にゆるく弧を描くまぶた
+                    g.lineWidth = 7;
+                    for (const sx of [-98, 98]) {
+                        g.beginPath();
+                        g.arc(
+                            512 + sx,
+                            230,
+                            13,
+                            Math.PI * 0.15,
+                            Math.PI * 0.85,
+                        );
+                        g.stroke();
+                    }
+                } else {
+                    // 開いた目：小さな点を左右に大きく離して
+                    for (const sx of [-98, 98]) {
+                        g.beginPath();
+                        g.ellipse(512 + sx, 236, 10, 12, 0, 0, Math.PI * 2);
+                        g.fill();
+                    }
+                }
+                // 鼻：小さな横長の点
+                g.beginPath();
+                g.ellipse(512, 258, 11, 8, 0, 0, Math.PI * 2);
+                g.fill();
+                // 口：ω型（下にふくらむ小さな弧を2つ）
+                g.lineWidth = 7;
+                g.beginPath();
+                g.arc(500, 280, 12, 0, Math.PI);
+                g.stroke();
+                g.beginPath();
+                g.arc(524, 280, 12, 0, Math.PI);
+                g.stroke();
+                const tex = new THREE.CanvasTexture(cv);
+                tex.encoding = THREE.sRGBEncoding;
+                tex.anisotropy = 4;
+                return tex;
+            }
+            const faceTexOpen = makeFaceTexture(false);
+            const faceTexBlink = makeFaceTexture(true);
+            const matBearFace = new THREE.MeshToonMaterial({
+                color: CONFIG.bearColor,
+                gradientMap,
+                map: faceTexOpen,
+            });
+
+            // シャツの文字：?shirt=文字 で任意の文字を白抜き表示（既定は無地シャツ）
+            function makeLogoTexture() {
+                const cv = document.createElement("canvas");
+                cv.width = 1024;
+                cv.height = 512; // シャツ前面に巻く帯（弧:高さ ≈ 2:1）に合わせる
+                const g = cv.getContext("2d");
+                // 透明背景だとミップマップ縮小時に白文字が黒ずむため、シャツと同じ青で塗り潰す
+                g.fillStyle =
+                    "#" + CONFIG.shirtColor.toString(16).padStart(6, "0");
+                g.fillRect(0, 0, 1024, 512);
+                const shirtText = new URLSearchParams(location.search).get(
+                    "shirt",
+                );
+                if (shirtText) {
+                    g.fillStyle = "#ffffff";
+                    g.textAlign = "center";
+                    g.textBaseline = "middle";
+                    const family =
+                        '"Hiragino Maru Gothic ProN", "Hiragino Sans", sans-serif';
+                    g.font = "bold 270px " + family;
+                    // 長い文字列は帯の幅（見える範囲）に収まるようフォントを縮小
+                    const w = g.measureText(shirtText).width;
+                    if (w > 940)
+                        g.font =
+                            "bold " +
+                            Math.floor((270 * 940) / w) +
+                            "px " +
+                            family;
+                    g.fillText(shirtText, 512, 252);
+                }
+                // encoding は指定しない：material.color の扱い（リニア直値）と揃えて
+                // シャツ本体と帯の青のトーンを一致させる
+                const tex = new THREE.CanvasTexture(cv);
+                tex.anisotropy = 4;
+                return tex;
+            }
+            const matOutline = new THREE.MeshBasicMaterial({
+                color: 0x1c1814,
+                side: THREE.BackSide,
+            });
+
+            const bear = new THREE.Group();
+            const outlined = []; // 輪郭線（inverted hull）を付けるメッシュ
+
+            function part(geo, mat, x, y, z, opts) {
+                const m = new THREE.Mesh(geo, mat);
+                m.position.set(x, y, z);
+                if (opts && opts.rot) m.rotation.set(...opts.rot);
+                if (opts && opts.scale) m.scale.set(...opts.scale);
+                bear.add(m);
+                if (!opts || opts.outline !== false) outlined.push(m);
+                return m;
+            }
+
+            // 胴体・シャツ
+            part(
+                new THREE.CapsuleGeometry(0.4, 0.45, 8, 24),
+                matBear,
+                0,
+                -0.45,
+                0,
+            );
+            part(
+                new THREE.CapsuleGeometry(0.44, 0.28, 8, 24),
+                matShirt,
+                0,
+                -0.28,
+                0,
+            );
+            // ロゴ帯：シャツ前面だけを覆う開いた円筒（θ=0 が +z 正面に来る）
+            const logoBand = new THREE.Mesh(
+                new THREE.CylinderGeometry(
+                    0.455,
+                    0.455,
+                    0.34,
+                    32,
+                    1,
+                    true,
+                    -0.75,
+                    1.5,
+                ),
+                new THREE.MeshToonMaterial({
+                    color: 0xffffff,
+                    gradientMap,
+                    map: makeLogoTexture(),
+                }),
+            );
+            logoBand.position.set(0, -0.27, 0);
+            bear.add(logoBand);
+            // 頭（テクスチャの正面が +z を向くよう -90° 回転。原画に合わせ横長に潰す）・耳
+            const head = part(
+                new THREE.SphereGeometry(0.54, 48, 48),
+                matBearFace,
+                0,
+                0.4,
+                0,
+                { rot: [0, -Math.PI / 2, 0], scale: [1, 0.84, 1.24] },
+            );
+            part(
+                new THREE.SphereGeometry(0.16, 24, 24),
+                matBear,
+                -0.5,
+                0.74,
+                0,
+            );
+            part(new THREE.SphereGeometry(0.16, 24, 24), matBear, 0.5, 0.74, 0);
+            // 腕・脚（付け根を軸に動くようジオメトリをオフセット）
+            const armGeoL = new THREE.CapsuleGeometry(0.13, 0.3, 8, 16);
+            armGeoL.translate(0, 0.15, 0);
+            const armL = part(armGeoL, matBear, -0.5, -0.22, 0.1, {
+                rot: [0, 0, 0.9],
+            });
+            const armGeoR = new THREE.CapsuleGeometry(0.13, 0.3, 8, 16);
+            armGeoR.translate(0, 0.15, 0);
+            const armR = part(armGeoR, matBear, 0.52, -0.3, 0.05, {
+                rot: [0, 0, -0.7],
+            });
+            const legGeoL = new THREE.CapsuleGeometry(0.15, 0.24, 8, 16);
+            legGeoL.translate(0, -0.12, 0);
+            const legL = part(legGeoL, matBear, -0.2, -0.92, 0.06, {
+                rot: [0.25, 0, 0.15],
+            });
+            const legGeoR = new THREE.CapsuleGeometry(0.15, 0.24, 8, 16);
+            legGeoR.translate(0, -0.12, 0);
+            const legR = part(legGeoR, matBear, 0.2, -0.92, 0.06, {
+                rot: [0.25, 0, -0.15],
+            });
+            // 宇宙飛行士装備：ヘルメット（透明バブル）・首リング・酸素タンク
+            const helmet = new THREE.Mesh(
+                new THREE.SphereGeometry(0.8, 48, 48),
+                new THREE.MeshPhongMaterial({
+                    color: 0xbcd8ff,
+                    transparent: true,
+                    opacity: 0.16,
+                    shininess: 120,
+                    specular: 0xffffff,
+                    depthWrite: false,
+                }),
+            );
+            helmet.position.set(0, 0.42, 0);
+            bear.add(helmet);
+            part(
+                new THREE.TorusGeometry(0.42, 0.075, 12, 32),
+                matSuit,
+                0,
+                -0.06,
+                0,
+                { rot: [Math.PI / 2, 0, 0] },
+            );
+            part(
+                new THREE.CapsuleGeometry(0.12, 0.36, 8, 16),
+                matSuit,
+                -0.16,
+                -0.34,
+                -0.46,
+            );
+            part(
+                new THREE.CapsuleGeometry(0.12, 0.36, 8, 16),
+                matSuit,
+                0.16,
+                -0.34,
+                -0.46,
+            );
+
+            // 輪郭線（inverted hull）：本体メッシュの子にして手足の動きに追従させる
+            for (const m of outlined) {
+                const o = new THREE.Mesh(m.geometry, matOutline);
+                o.scale.setScalar(1.05);
+                m.add(o);
+            }
+
+            // ====== カメラリグ：地球を見回す遊覧カメラ + カメラに同伴する黄色い熊 ======
+            // 熊はカメラの子にして常に画面内を漂わせる。カメラがどこを向いても一緒に遊泳する
+            scene.add(camera);
+            camera.add(bear);
+            bear.position.set(...CONFIG.bearOffset);
+            bear.scale.setScalar(CONFIG.bearScale); // カメラ空間では無回転で顔がこちらを向く
+            // 熊専用のフィルライト：夜側や逆光でも熊が見えるようカメラに同伴させる
+            // （地球はカスタムシェーダーでシーンライトを受けないため、熊と装備だけに効く）
+            const bearFill = new THREE.PointLight(0xfff0e0, 0.3, 6, 1.5);
+            bearFill.position.set(0.15, 0.4, -0.35);
+            camera.add(bearFill);
+            const earthPosV = new THREE.Vector3(...CONFIG.earthPos);
+            const camTargetWorld = new THREE.Vector3();
+            const tmpDir = new THREE.Vector3();
+            const tmpRight = new THREE.Vector3();
+            const tmpUp = new THREE.Vector3();
+
+            // ====== 音声解析 ======
+            const audioEl = document.getElementById("bgm");
+            audioEl.src = CONFIG.audioFile;
+
+            // ====== プレイリスト（music/ の曲をファイル名順に連続再生） ======
+            // 取得の優先順:
+            //   1. music/playlist.json（静的ホスティング用。generate-playlist.js で生成）
+            //   2. ディレクトリ一覧の解析（ローカルの http-server / python http.server 用）
+            //   3. CONFIG.audioFile の単曲ループ（file:// 直開き等の最終フォールバック）
+            const AUDIO_EXT = /\.(mp3|m4a|ogg|wav|flac)$/i;
+            let playlist = [];
+            let trackIndex = -1; // フォールバック曲の再生中は -1（ended で 0 曲目から始まる）
+            const trackUrl = (name) => "./music/" + encodeURIComponent(name);
+            async function fetchPlaylist() {
+                try {
+                    const res = await fetch("./music/playlist.json");
+                    if (res.ok) {
+                        const list = await res.json();
+                        if (Array.isArray(list) && list.length) return list;
+                    }
+                } catch (e) {}
+                try {
+                    const res = await fetch("./music/");
+                    if (res.ok) {
+                        const doc = new DOMParser().parseFromString(
+                            await res.text(),
+                            "text/html",
+                        );
+                        const files = [...doc.querySelectorAll("a")]
+                            .map((a) =>
+                                decodeURIComponent(
+                                    (a.getAttribute("href") || "")
+                                        .split("/")
+                                        .pop(),
+                                ),
+                            )
+                            .filter((f) => AUDIO_EXT.test(f))
+                            .sort();
+                        if (files.length) return files;
+                    }
+                } catch (e) {}
+                return [];
+            }
+            function playTrack(i) {
+                trackIndex =
+                    ((i % playlist.length) + playlist.length) % playlist.length;
+                audioEl.src = trackUrl(playlist[trackIndex]);
+                setNowPlaying(playlist[trackIndex]);
+                audioEl.play().catch(() => {});
+            }
+            fetchPlaylist().then((list) => {
+                if (!list.length) return;
+                playlist = list;
+                // クリック前なら1曲目に差し替える（再生開始後なら曲の終わりから合流）
+                if (audioEl.paused && !currentObjectURL) {
+                    trackIndex = 0;
+                    audioEl.src = trackUrl(playlist[0]);
+                    setNowPlaying(playlist[0]);
+                }
+            });
+            // 曲が終わったら次へ。D&Dの差し替え曲と単曲フォールバックは従来どおりループ
+            audioEl.addEventListener("ended", () => {
+                if (playlist.length && !currentObjectURL) {
+                    playTrack(trackIndex + 1);
+                } else {
+                    audioEl.play().catch(() => {});
+                }
+            });
+
+            const overlay = document.getElementById("overlay");
+            let analyser = null;
+            let freqData = null;
+            let fakeMode = isPreview; // 解析不能時は疑似変調にフォールバック
+            let silentFrames = 0;
+            const bands = { bass: 0, mid: 0, treble: 0, level: 0 };
+            // ビート（低音オンセット）検出の状態。hit=このフレームで拍、env=減衰エンベロープ、strength=拍の強さ
+            const beat = { hit: false, strength: 0, env: 0 };
+            let bassAvg = 0,
+                lastBeatAt = -1;
+
+            // 音声グラフ（AudioContext＋解析）は要素につき1回だけ生成する。
+            // createMediaElementSource は再呼び出し不可なので、曲の差し替え時は src 変更＋再生のみ。
+            let audioCtx = null,
+                audioStarted = false;
+            function ensureAudioGraph() {
+                if (audioStarted) return;
+                audioStarted = true;
+                const Ctx = window.AudioContext || window.webkitAudioContext;
+                try {
+                    audioCtx = new Ctx();
+                    const src = audioCtx.createMediaElementSource(audioEl);
+                    analyser = audioCtx.createAnalyser();
+                    analyser.fftSize = 2048;
+                    analyser.smoothingTimeConstant = 0.82;
+                    src.connect(analyser);
+                    analyser.connect(audioCtx.destination);
+                    freqData = new Uint8Array(analyser.frequencyBinCount);
+                } catch (e) {
+                    fakeMode = true; // Web Audio が使えなくても鑑賞は続行
+                }
+            }
+            function startAudio() {
+                ensureAudioGraph();
+                if (audioCtx) audioCtx.resume();
+                audioEl.play().catch(() => {
+                    fakeMode = true;
+                });
+            }
+
+            // 音量スライダー（控えめ表示・再生開始後に出現・設定はlocalStorageに記憶）
+            const volWrap = document.getElementById("volume");
+            const volSlider = document.getElementById("vol");
+            let savedVol = 0.8;
+            try {
+                const s = parseFloat(
+                    localStorage.getItem("bear-spacewalk-vol"),
+                );
+                if (!isNaN(s)) savedVol = Math.min(1, Math.max(0, s));
+            } catch (e) {
+                /* localStorage が使えない環境では既定値 */
+            }
+            audioEl.volume = savedVol;
+            volSlider.value = savedVol;
+            volSlider.addEventListener("input", () => {
+                audioEl.volume = parseFloat(volSlider.value);
+                try {
+                    localStorage.setItem("bear-spacewalk-vol", volSlider.value);
+                } catch (e) {}
+            });
+
+            // BGM 差し替え（File API）：選択／ドロップした音声を読み込み、その場で差し替える
+            const musicWrap = document.getElementById("music");
+            const musicInput = document.getElementById("musicFile");
+            const nowPlaying = document.getElementById("nowplaying");
+            function setNowPlaying(name) {
+                nowPlaying.textContent = name ? "♪ " + name : "";
+            }
+            setNowPlaying(CONFIG.audioFile.split("/").pop()); // 初期は既定曲のファイル名
+            let currentObjectURL = null;
+            function loadAudioFile(file) {
+                if (!file || !/^audio\//.test(file.type)) return; // 音声以外は無視
+                if (currentObjectURL) URL.revokeObjectURL(currentObjectURL); // 前の曲のURLを解放
+                currentObjectURL = URL.createObjectURL(file);
+                audioEl.src = currentObjectURL;
+                fakeMode = false;
+                silentFrames = 0; // 解析を再開
+                setNowPlaying(file.name); // 右下にファイル名を表示
+                overlay.classList.add("hidden");
+                volWrap.classList.add("show");
+                musicWrap.classList.add("show");
+                startAudio(); // グラフは初回のみ生成、以降は再生のみ
+            }
+            musicInput.addEventListener("change", () => {
+                loadAudioFile(musicInput.files[0]);
+                musicInput.value = "";
+            });
+            // ページ全体へのドラッグ＆ドロップ
+            window.addEventListener("dragover", (e) => {
+                e.preventDefault();
+                document.body.classList.add("dropping");
+            });
+            window.addEventListener("dragleave", (e) => {
+                if (!e.relatedTarget)
+                    document.body.classList.remove("dropping");
+            });
+            window.addEventListener("drop", (e) => {
+                e.preventDefault();
+                document.body.classList.remove("dropping");
+                const f =
+                    e.dataTransfer &&
+                    e.dataTransfer.files &&
+                    e.dataTransfer.files[0];
+                if (f) loadAudioFile(f);
+            });
+
+            overlay.addEventListener(
+                "click",
+                () => {
+                    overlay.classList.add("hidden");
+                    volWrap.classList.add("show");
+                    musicWrap.classList.add("show");
+                    startAudio();
+                },
+                { once: true },
+            );
+            if (isPreview) {
+                overlay.classList.add("hidden");
+                volWrap.classList.add("show"); // 撮影確認用に表示
+                musicWrap.classList.add("show");
+            }
+
+            // bin 幅 ≈ 21.5Hz（44.1kHz / 2048）: bass≈40-260Hz, mid≈260-2k, treble≈2k-8k
+            function avgRange(lo, hi) {
+                let s = 0;
+                for (let i = lo; i < hi; i++) s += freqData[i];
+                return s / ((hi - lo) * 255);
+            }
+
+            function updateBands(t) {
+                let target = { bass: 0, mid: 0, treble: 0, level: 0 };
+                if (analyser && !fakeMode) {
+                    analyser.getByteFrequencyData(freqData);
+                    target.bass = avgRange(2, 12);
+                    target.mid = avgRange(12, 93);
+                    target.treble = avgRange(93, 372);
+                    target.level =
+                        (target.bass + target.mid + target.treble) / 3;
+                    // file:// 等で解析がゼロを返し続ける環境を検知してフォールバック
+                    if (!audioEl.paused && target.level === 0) {
+                        if (++silentFrames > 180) fakeMode = true;
+                    } else {
+                        silentFrames = 0;
+                    }
+                }
+                if (fakeMode) {
+                    target.bass =
+                        0.3 +
+                        0.22 * Math.sin(t * 1.9) +
+                        0.08 * Math.sin(t * 4.7);
+                    target.mid = 0.35 + 0.25 * Math.sin(t * 0.23);
+                    target.treble = 0.25 + 0.18 * Math.sin(t * 3.1 + 1.0);
+                    target.level = 0.3;
+                }
+                // ビート検出：平滑化前の瞬時 bass が遅い平均を上回った瞬間を拍とみなす（不応期つき）
+                const inst = target.bass;
+                bassAvg += (inst - bassAvg) * 0.05;
+                beat.hit = false;
+                if (
+                    inst > bassAvg * 1.4 &&
+                    inst > 0.18 &&
+                    t - lastBeatAt > 0.18
+                ) {
+                    beat.hit = true;
+                    beat.strength = Math.min(1, (inst - bassAvg) * 2.5);
+                    beat.env = Math.max(beat.env, beat.strength);
+                    lastBeatAt = t;
+                }
+                beat.env *= 0.9; // 視覚演出用の減衰エンベロープ
+                // 急峻な変化をなめらかに
+                const k = 0.12;
+                bands.bass += (target.bass - bands.bass) * k;
+                bands.mid += (target.mid - bands.mid) * k * 0.4; // 色相はよりゆっくり
+                bands.treble += (target.treble - bands.treble) * k;
+                bands.level += (target.level - bands.level) * k;
+            }
+
+            // ====== 後処理シェーダー（ゴッドレイ / Bloom / 合成） ======
+            // ゴッドレイ：occRT を太陽の画面位置から放射状にブラー（volumetric light scattering）
+            const godMat = new THREE.ShaderMaterial({
+                depthTest: false,
+                depthWrite: false,
+                uniforms: {
+                    tDiffuse: { value: null },
+                    uLightPos: { value: new THREE.Vector2(0.5, 0.5) },
+                    uExposure: { value: 0.42 },
+                    uDecay: { value: 0.96 },
+                    uDensity: { value: 0.95 },
+                    uWeight: { value: 0.55 },
+                    uStrength: { value: 1.0 },
+                },
+                vertexShader: FS_VERT,
+                fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform vec2 uLightPos;
+    uniform float uExposure, uDecay, uDensity, uWeight, uStrength;
+    varying vec2 vUv;
+    const int SAMPLES = 60;
+    void main(){
+      vec2 dir = (vUv - uLightPos) * uDensity / float(SAMPLES);
+      vec2 coord = vUv;
+      float illum = 1.0;
+      vec3 col = vec3(0.0);
+      for (int i = 0; i < SAMPLES; i++) {
+        coord -= dir;
+        vec3 s = texture2D(tDiffuse, coord).rgb * illum * uWeight;
+        col += s;
+        illum *= uDecay;
+      }
+      gl_FragColor = vec4(col * uExposure * uStrength, 1.0);
+    }`,
+            });
+
+            // Bloom 明部抽出
+            const brightMat = new THREE.ShaderMaterial({
+                depthTest: false,
+                depthWrite: false,
+                uniforms: {
+                    tDiffuse: { value: null },
+                    uThreshold: { value: 0.85 },
+                },
+                vertexShader: FS_VERT,
+                fragmentShader: `
+    uniform sampler2D tDiffuse; uniform float uThreshold;
+    varying vec2 vUv;
+    void main(){
+      vec3 c = texture2D(tDiffuse, vUv).rgb;
+      float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+      float k = smoothstep(uThreshold, uThreshold + 0.35, l);
+      gl_FragColor = vec4(c * k, 1.0);
+    }`,
+            });
+
+            // 分離ガウシアンぼかし
+            const blurMat = new THREE.ShaderMaterial({
+                depthTest: false,
+                depthWrite: false,
+                uniforms: {
+                    tDiffuse: { value: null },
+                    uOffset: { value: new THREE.Vector2() },
+                },
+                vertexShader: FS_VERT,
+                fragmentShader: `
+    uniform sampler2D tDiffuse; uniform vec2 uOffset;
+    varying vec2 vUv;
+    void main(){
+      vec4 sum = vec4(0.0);
+      sum += texture2D(tDiffuse, vUv - 4.0*uOffset) * 0.05;
+      sum += texture2D(tDiffuse, vUv - 3.0*uOffset) * 0.09;
+      sum += texture2D(tDiffuse, vUv - 2.0*uOffset) * 0.12;
+      sum += texture2D(tDiffuse, vUv - 1.0*uOffset) * 0.15;
+      sum += texture2D(tDiffuse, vUv)               * 0.18;
+      sum += texture2D(tDiffuse, vUv + 1.0*uOffset) * 0.15;
+      sum += texture2D(tDiffuse, vUv + 2.0*uOffset) * 0.12;
+      sum += texture2D(tDiffuse, vUv + 3.0*uOffset) * 0.09;
+      sum += texture2D(tDiffuse, vUv + 4.0*uOffset) * 0.05;
+      gl_FragColor = sum;
+    }`,
+            });
+
+            // 最終合成：本シーン＋Bloom＋ハレーション＋ゴッドレイ → トーンマップ
+            const compMat = new THREE.ShaderMaterial({
+                depthTest: false,
+                depthWrite: false,
+                uniforms: {
+                    tScene: { value: null },
+                    tGlow: { value: null },
+                    tGod: { value: null },
+                    uBloom: { value: 0.42 },
+                    uHalation: { value: 0.26 },
+                    uHalColor: { value: new THREE.Color(1.0, 0.55, 0.25) },
+                },
+                vertexShader: FS_VERT,
+                fragmentShader: `
+    uniform sampler2D tScene, tGlow, tGod;
+    uniform float uBloom, uHalation;
+    uniform vec3 uHalColor;
+    varying vec2 vUv;
+    // 画面座標ベースの擬似乱数（最終8bit出力の縞を散らすディザ用）
+    float dither(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+    void main(){
+      vec3 scene = texture2D(tScene, vUv).rgb;
+      vec3 glow  = texture2D(tGlow, vUv).rgb;
+      vec3 god   = texture2D(tGod, vUv).rgb;
+      float gi = dot(glow, vec3(0.2126, 0.7152, 0.0722));
+      vec3 col = scene + glow * uBloom + uHalColor * gi * uHalation + god;
+      col = col / (1.0 + max(col - vec3(1.0), vec3(0.0)));
+      // ±0.5/255 のディザでバンディングをノイズに分散（8bit画面出力対策）
+      col += (dither(gl_FragCoord.xy) - 0.5) / 255.0;
+      gl_FragColor = vec4(col, 1.0);
+    }`,
+            });
+
+            // 太陽の画面座標（occRT/godMat 用の uv）と可視判定
+            const godStrength = 1.0;
+            const _sp = new THREE.Vector3();
+            function sunScreen() {
+                _sp.copy(sunGroup.position).project(camera);
+                // 画面外に出ても即カットせず、太陽円盤が完全に外れるあたり（NDC1.6）まで滑らかに減衰
+                const edge = Math.max(Math.abs(_sp.x), Math.abs(_sp.y));
+                const fade =
+                    _sp.z < 1.0
+                        ? 1 - THREE.MathUtils.smoothstep(edge, 1.15, 1.6)
+                        : 0;
+                return {
+                    x: _sp.x * 0.5 + 0.5,
+                    y: _sp.y * 0.5 + 0.5,
+                    fade,
+                };
+            }
+
+            // カメラが地球の夜側半球の上空にいる度合い（0=昼側, 1=夜側）。
+            // camera→地球中心 の方向と太陽方向の内積で判定（dot>0:昼半球上空, dot<0:夜半球上空）。
+            // 天の川はこの夜側度に応じて表示する。
+            const _camDir = new THREE.Vector3();
+            function cameraNightness() {
+                _camDir.copy(camera.position).sub(earthPosV).normalize();
+                // dot>0:昼半球上空 / dot<0:夜半球上空。smoothstep(min<max)で昼側=1を作り反転して夜側=1に
+                return (
+                    1 -
+                    THREE.MathUtils.smoothstep(_camDir.dot(sunDir), -0.25, 0.05)
+                );
+            }
+
+            // 遮蔽バッファ：太陽=白・地球=黒を本カメラで occRT へ（深度で太陽が欠ける＝日食）
+            function renderOcclusion() {
+                occEarth.position.copy(earth.position);
+                occEarth.quaternion.copy(earth.quaternion);
+                occSun.position.copy(sunGroup.position);
+                occSun.quaternion.copy(sunGroup.quaternion);
+                renderer.setRenderTarget(occRT);
+                renderer.render(occScene, camera);
+            }
+
+            // 後処理パイプライン本体
+            let milkyVis = 0; // 天の川の表示度（夜側半球で 1 へ、昼側で 0 へフェード）
+            let zodiacVis = 0; // 昼の光の帯の表示度（昼側で 1 へ）
+            function renderPost() {
+                // カメラが地球の夜側半球に入ったら天の川を浮かび上がらせる（ゆっくりフェード）
+                milkyVis += (cameraNightness() - milkyVis) * 0.12;
+                milkyMat.uniforms.uVisible.value = forceMilky ? 1 : milkyVis;
+                // 昼側では“光の帯”を浮かび上がらせる（天の川と昼夜クロスフェード）
+                zodiacVis += (1 - cameraNightness() - zodiacVis) * 0.12;
+                zodiacMat.uniforms.uVisible.value = forceZodiac ? 1 : zodiacVis;
+
+                renderer.setRenderTarget(sceneRT);
+                renderer.render(scene, camera);
+
+                renderOcclusion();
+
+                const sp = sunScreen();
+                godMat.uniforms.tDiffuse.value = occRT.texture;
+                godMat.uniforms.uLightPos.value.set(sp.x, sp.y);
+                godMat.uniforms.uStrength.value = godStrength * sp.fade;
+                blit(godMat, godRT);
+
+                brightMat.uniforms.tDiffuse.value = sceneRT.texture;
+                blit(brightMat, brightRT);
+
+                let src = brightRT;
+                for (let i = 0; i < 5; i++) {
+                    const r = i + 1;
+                    blurMat.uniforms.tDiffuse.value = src.texture;
+                    blurMat.uniforms.uOffset.value.set(r / hW, 0);
+                    blit(blurMat, blurA);
+                    blurMat.uniforms.tDiffuse.value = blurA.texture;
+                    blurMat.uniforms.uOffset.value.set(0, r / hH);
+                    blit(blurMat, blurB);
+                    src = blurB;
+                }
+
+                compMat.uniforms.tScene.value = sceneRT.texture;
+                compMat.uniforms.tGlow.value = blurB.texture;
+                compMat.uniforms.tGod.value = godRT.texture;
+                blit(compMat, null);
+                renderer.setRenderTarget(null);
+            }
+
+            // ====== メインループ ======
+            const clock = new THREE.Clock();
+            // ?t0=秒 でアニメ時刻を先送りして開始（遊覧パスの後半の構図確認用）
+            const t0Match = location.search.match(/t0=([\d.]+)/);
+            let t = t0Match ? parseFloat(t0Match[1]) : 0;
+
+            // 瞬き・手足バタバタの状態（撮影確認用に &blink / &flail で強制可能）
+            const forceBlink = location.search.indexOf("blink") !== -1;
+            const forceFlail = location.search.indexOf("flail") !== -1;
+            const forceMilky = location.search.indexOf("milky") !== -1; // 確認用：天の川を常時表示
+            const forceZodiac = location.search.indexOf("zodiac") !== -1; // 確認用：昼の光の帯を常時表示
+            const forceDay = location.search.indexOf("forceday") !== -1; // 確認用：昼構図を強制（太陽をカメラ側へ）
+            let blinkUntil = -1;
+            let nextBlinkAt = 3;
+            let flailStart = -10;
+            let flailDur = 1;
+            let nextFlailAt = 6;
+            // カメラ遊覧リグ（位置＋視線）を関数化：毎フレームのループと「起動時の月初期角」計算で共有する。
+            const _rigFwd = new THREE.Vector3(); // 直近フレームの視線方向（単位ベクトル）
+            function updateCameraRig(camT) {
+                // 地球を見回す遊覧パス（方位・仰角・距離が別周期でゆっくり揺らぐ）
+                const az = CONFIG.camAz0 + 0.1 * Math.sin(0.02 * camT);
+                const el =
+                    0.42 * Math.sin(0.0083 * camT + 1.0) +
+                    0.12 * Math.sin(0.023 * camT);
+                const rr = 11.2 + 1.8 * Math.sin(0.0067 * camT + 4.0);
+                camera.position.set(
+                    earthPosV.x + rr * Math.cos(el) * Math.cos(az),
+                    earthPosV.y + rr * Math.sin(el),
+                    earthPosV.z + rr * Math.cos(el) * Math.sin(az),
+                );
+                // 視線：地球中心方向から仰角βだけ持ち上げて地平線を画面下に置き、左右γを加える
+                tmpDir.copy(earthPosV).sub(camera.position).normalize();
+                tmpRight.crossVectors(tmpDir, camera.up).normalize();
+                const alpha = Math.asin(CONFIG.earthRadius / rr); // 地球の視半径
+                const horizonElev =
+                    0.07 + 0.06 * (0.5 + 0.5 * Math.sin(0.009 * camT + 2.0));
+                const beta = alpha - horizonElev;
+                const gamma = 0.3 * Math.sin(0.013 * camT + 0.7);
+                tmpDir.applyAxisAngle(tmpRight, beta); // 中心から地平線方向へ
+                tmpUp.crossVectors(tmpRight, tmpDir).normalize();
+                tmpDir.applyAxisAngle(tmpUp, gamma); // 左右の見回し
+                _rigFwd.copy(tmpDir); // 起動時の月初期角計算で参照
+                camTargetWorld
+                    .copy(camera.position)
+                    .addScaledVector(tmpDir, 10);
+                camera.lookAt(camTargetWorld);
+                return horizonElev; // 熊の配置(bearElev)で使う
+            }
+
+            function animate() {
+                requestAnimationFrame(animate);
+                const dt = Math.min(clock.getDelta(), 0.05);
+                t += dt;
+                updateBands(t);
+
+                // 地球：日本→西へユーラシアを映す俯瞰ツアー。tourSpin の一定速で回す（音による加減速はしない）。
+                // プレビューは効果確認用に 5秒で1周（開始構図 t0=0 は実モードと共通）
+                const baseSpin = isPreview
+                    ? (Math.PI * 2) / 5
+                    : ryOverride
+                      ? CONFIG.earthSpin
+                      : CONFIG.tourSpin;
+                earth.rotation.y += dt * baseSpin;
+                if (CONFIG.timeSync) updateSunDir(); // 太陽方向は現在時刻に追従（現実の昼夜を維持）
+                if (forceDay)
+                    sunDir.copy(camera.position).sub(earthPosV).normalize(); // 確認用：昼構図を強制
+                earthUniforms.uTime.value = t;
+                earthUniforms.uBass.value = bands.bass + beat.env * 0.3;
+                earthUniforms.uMid.value = bands.mid;
+                earthTexUniforms.uBass.value = bands.bass;
+                earthTexUniforms.uMid.value = bands.mid;
+                earthTexUniforms.uSunDirView.value
+                    .copy(sunDir)
+                    .transformDirection(camera.matrixWorldInverse);
+                // 雲は本体と独立に流す（時刻同期中は地表が静止に近いので控えめに）
+                if (texturedEarth)
+                    clouds.rotation.y +=
+                        dt *
+                        (isPreview
+                            ? ((Math.PI * 2) / 5) * 1.12
+                            : ryOverride
+                              ? CONFIG.earthSpin * 1.4
+                              : CONFIG.tourSpin * 1.1);
+                atmoUniforms.uBass.value = bands.bass + beat.env * 0.45;
+                atmoUniforms.uMid.value = bands.mid;
+                earthLight.intensity = 0.55 + bands.bass * 1.6;
+
+                // 太陽：表面のうねりだけ時間で動かす（明るさは音楽に連動させず一定）
+                sunCoreMat.uniforms.uTime.value = t;
+
+                // 昼の光の帯・雲churn・月（いずれも音非依存でゆっくり）
+                zodiacMat.uniforms.uTime.value = t;
+                cloudUniforms.uTime.value = t;
+                // 月：太陽と同じ軌道面を earthCenter まわりに公転。太陽光で満ち欠け。
+                moonAng += dt * (isPreview ? 0.5 : 0.02); // 公転速度（通常ゆっくり=1周約5分／preview は確認用に高速）
+                moonPositionAt(moonAng, moon.position);
+                moon.rotation.y += dt * (isPreview ? 0.2 : 0.03); // 自転
+
+                // 星：高音できらめく＋ビートで増幅
+                starUniforms.uTime.value = t;
+                starUniforms.uTreble.value = bands.treble;
+                starUniforms.uBeat.value = beat.env;
+                // 星空・天の川を自転に合わせてゆっくり回す（星が固定で動かず死んで見えないように）
+                starPoints.rotation.y += dt * baseSpin * 0.6;
+                milky.rotation.y += dt * baseSpin * 0.6;
+
+                // ビジュアライザー：ビートで流星をspawn・波紋リングを発生、極オーロラは音で揺らぐ
+                if (beat.hit && beat.strength > 0.45 && Math.random() < 0.7)
+                    spawnMeteor();
+                if (beat.hit) spawnRing(beat.strength);
+                // 無音でも一定間隔で流れ星を出す（ビート分に上乗せ）
+                ambientMeteorTimer -= dt;
+                if (ambientMeteorTimer <= 0) {
+                    spawnMeteor(); // ②タイマー分（①ビート分と同じく視界内に出る）
+                    ambientMeteorTimer = isPreview
+                        ? 0.5 + Math.random() * 0.5 // 撮影確認用：0.5〜1.0秒ごと＝ほぼ常に画面内
+                        : 9 + Math.random() * 13; // 通常：9〜22秒に1本
+                }
+                updateMeteors(dt);
+                updateRings();
+                updateUFO(t, dt);
+                const auroraAudio = Math.min(
+                    1,
+                    bands.mid * 0.6 + bands.treble * 0.5 + beat.env * 0.5,
+                );
+                auroraN.uniforms.uTime.value = t;
+                auroraN.uniforms.uAudio.value = auroraAudio;
+                auroraS.uniforms.uTime.value = t;
+                auroraS.uniforms.uAudio.value = auroraAudio;
+
+                // カメラ遊覧パス（位置＋視線）。実装は updateCameraRig（起動時の月初期角計算と共有）。
+                const horizonElev = updateCameraRig(t); // 戻り値(地平線仰角)は熊の配置に使う
+
+                // 夜側では太陽が地球に遮られる：熊・装備への直射光を影で滑らかに消す
+                tmpRight.copy(camera.position).sub(earthPosV).normalize();
+                sun.intensity =
+                    0.72 *
+                    THREE.MathUtils.smoothstep(
+                        tmpRight.dot(sunDir),
+                        -0.45,
+                        -0.05,
+                    );
+
+                // 熊：地平線の少し下＝大地を背景に、地球の手前を一定のゆっくりペースで漂う
+                // （音楽連動は宇宙遊泳の静けさを損なうため体の動きには入れない）
+                const bearElev = horizonElev - 0.15; // 地平線より下に置き「地球の手前」に見せる
+                bear.position.set(
+                    CONFIG.bearOffset[0] + Math.sin(t * 0.31) * 0.06,
+                    Math.abs(CONFIG.bearOffset[2]) * Math.tan(bearElev) +
+                        Math.sin(t * 0.23 + 1.2) * 0.025,
+                    CONFIG.bearOffset[2] + Math.sin(t * 0.17 + 2.4) * 0.03,
+                );
+                bear.rotation.z = Math.sin(t * 0.12) * 0.35 - 0.15;
+                bear.rotation.x = Math.sin(t * 0.09 + 0.7) * 0.25;
+                if (t < 0.1)
+                    bear.rotation.y = -0.6; // スタート時は左に向く
+                else bear.rotation.y += dt * 0.08;
+
+                if (isPreview) bear.rotation.set(0, 0, 0); // 撮影確認用に正面固定
+
+                // 瞬き：3〜7秒間隔でランダム、たまに二連
+                if (t >= nextBlinkAt) {
+                    blinkUntil = t + 0.13;
+                    nextBlinkAt =
+                        Math.random() < 0.25
+                            ? t + 0.45
+                            : t + 3 + Math.random() * 4;
+                }
+                matBearFace.map =
+                    forceBlink || t < blinkUntil ? faceTexBlink : faceTexOpen;
+
+                // 手足バタバタ：7〜15秒ごとに1.4〜2.2秒、なめらかに始まり収まる
+                if (t >= nextFlailAt) {
+                    flailStart = t;
+                    flailDur = 1.4 + Math.random() * 0.8;
+                    nextFlailAt = t + 7 + Math.random() * 8;
+                }
+                const fp = (t - flailStart) / flailDur;
+                const flail = forceFlail
+                    ? 1
+                    : fp >= 0 && fp <= 1
+                      ? Math.sin(Math.PI * fp)
+                      : 0;
+                const flap = flail * Math.sin(t * 9.0) * 0.5; // 腕：左右同時に羽ばたき
+                const kick = flail * Math.sin(t * 8.0 + 1.0) * 0.45; // 脚：交互にバタ足
+                armL.rotation.z = 0.9 + flap;
+                armR.rotation.z = -0.7 - flap;
+                legL.rotation.x = 0.25 + kick;
+                legR.rotation.x = 0.25 - kick;
+
+                renderPost();
+            }
+
+            // ====== 起動時の月の初期公転角 ======
+            // 太陽が画面に入っていないときは、月が視界へ入ってくる位置から開始する。太陽が画面内なら既定角のまま。
+            {
+                updateCameraRig(t); // 起動時の視線 _rigFwd を確定
+                const _v = new THREE.Vector3();
+                const _m = new THREE.Vector3();
+                const vHalf = THREE.MathUtils.degToRad(camera.fov) * 0.5;
+                const hHalf = Math.atan(Math.tan(vHalf) * camera.aspect); // 水平画角の半分
+                const sunInView =
+                    _v
+                        .copy(sunGroup.position)
+                        .sub(camera.position)
+                        .normalize()
+                        .dot(_rigFwd) > Math.cos(hHalf + 0.12); // +余裕（太陽の視半径・グロー分）
+                if (!sunInView) {
+                    // 月が画面内かつ地球に遮蔽されない公転角のうち、最も中心寄りに見える角を探す。
+                    const _e = new THREE.Vector3()
+                        .copy(earthCenter)
+                        .sub(camera.position); // カメラ→地球中心
+                    const earthDist = _e.length();
+                    const er = CONFIG.earthRadius;
+                    let best = null,
+                        bestDot = -2;
+                    for (let i = 0; i < 720; i++) {
+                        const a = (i / 720) * Math.PI * 2;
+                        moonPositionAt(a, _m);
+                        _v.copy(_m).sub(camera.position);
+                        const md = _v.length();
+                        _v.divideScalar(md); // 月方向（単位）
+                        const dotFwd = _v.dot(_rigFwd);
+                        if (dotFwd < Math.cos(hHalf)) continue; // 画面外
+                        // 地球球による遮蔽：手前の月は見える／裏は隠れる
+                        const tca = _e.dot(_v);
+                        const d2 = earthDist * earthDist - tca * tca;
+                        if (tca > 0 && d2 < er * er) {
+                            const t0 = tca - Math.sqrt(er * er - d2);
+                            if (t0 > 0 && t0 < md) continue; // 地球が手前で遮る
+                        }
+                        if (dotFwd > bestDot) {
+                            bestDot = dotFwd;
+                            best = a;
+                        }
+                    }
+                    // 可視角の少し手前から公転で「入ってくる」
+                    if (best !== null) moonAng = best - 0.5;
+                }
+            }
+            animate();
+
+            window.addEventListener("resize", () => {
+                W = window.innerWidth;
+                H = window.innerHeight;
+                hW = Math.max(1, W >> 1);
+                hH = Math.max(1, H >> 1);
+                camera.aspect = W / H;
+                camera.updateProjectionMatrix();
+                renderer.setSize(W, H);
+                sceneRT.setSize(W, H);
+                occRT.setSize(hW, hH);
+                godRT.setSize(hW, hH);
+                brightRT.setSize(hW, hH);
+                blurA.setSize(hW, hH);
+                blurB.setSize(hW, hH);
+            });
+        </script>
+    </body>
+</html>
