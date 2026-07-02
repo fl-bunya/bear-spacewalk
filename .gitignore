@@ -7,5 +7,8 @@ materials/
 # 生成物（node generate-playlist.js で生成。デプロイ前に生成する）
 music/playlist.json
 
+# デプロイ用の一時フォルダ（npm run deploy が作る）
+dist/
+
 # macOS
 .DS_Store

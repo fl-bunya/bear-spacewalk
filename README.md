@@ -90,11 +90,15 @@ file:// 直開き等でテクスチャが読み込めない環境では、シェ
 
 ## 公開（Cloudflare Pages）
 
-静的ホスティングはディレクトリ一覧を返さないため、デプロイ前に
-`music/playlist.json` の生成が必要（`.gitignore` 対象なのでビルド時に作る）。
+https://bear-spacewalk.pages.dev で公開中。デプロイは:
 
-- Git 連携: ビルドコマンド `npm run build`、出力ディレクトリ `/`
-- 直接デプロイ: `npm run build && npx wrangler pages deploy .`
+```sh
+npm run deploy
+```
+
+playlist.json の生成 → `dist/` に公開ファイル（index.html / lib / textures /
+music）だけを集める → `wrangler pages deploy` まで一括で行う。
+初回のみ `npx wrangler login` で Cloudflare にログインしておくこと。
 
 ## 調整ポイント
 

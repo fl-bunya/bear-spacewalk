@@ -159,6 +159,8 @@
                 pointer-events: none;
             }
             #nowplaying span {
+                pointer-events: auto;
+                transition: color 0.2s ease;
                 max-width: 42vw;
                 overflow: hidden;
                 text-overflow: ellipsis;
@@ -175,8 +177,10 @@
                 cursor: pointer;
                 display: none; /* プレイリスト読み込み後に表示 */
                 transition: color 0.2s ease;
+                transform: translateY(-1px); /* « » は字面が下寄りのため光学中央に補正 */
             }
-            #nowplaying button:hover {
+            #nowplaying button:hover,
+            #nowplaying span:hover {
                 color: rgba(215, 235, 255, 0.95);
             }
             #overlay .hint {
@@ -255,7 +259,7 @@
                 camAz0: 0.0, // 俯瞰カメラの固定方位（開始時に日本が中央に来るよう調整）
                 timeSync: true, // true: 現在時刻の太陽位置に同期（昼夜は現実どおり）
                 // 地球は tourSpin でゆっくり自転し、日本→西へユーラシアを映す
-                audioFile: "./music/宇宙でさみしいなあ1-v4.5.mp3", // プレイリスト取得不可時（file://等）の単曲フォールバック
+                audioFile: "./music/宇宙でさみしいなあ1.mp3", // プレイリスト取得不可時（file://等）の単曲フォールバック
             };
 
             const isPreview = location.search.indexOf("preview") !== -1;
@@ -1865,7 +1869,11 @@
             const musicInput = document.getElementById("musicFile");
             const nowPlaying = document.getElementById("trackname");
             function setNowPlaying(name) {
-                nowPlaying.textContent = name ? "♪ " + name : "";
+                // 表示用に拡張子（.mp3 等）は落とす
+                const label = name ? name.replace(/\.[^.]+$/, "") : "";
+                nowPlaying.textContent = label ? "♪ " + label : "";
+                // ブラウザのタブにも再生中の曲名を出す
+                document.title = label ? "♪ " + label : "Bear Spacewalk";
             }
             setNowPlaying(CONFIG.audioFile.split("/").pop()); // 初期は既定曲のファイル名
             let currentObjectURL = null;

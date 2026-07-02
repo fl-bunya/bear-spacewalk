@@ -1,6 +1,7 @@
 {
   "scripts": {
-    "build": "node generate-playlist.js"
+    "build": "node generate-playlist.js",
+    "deploy": "npm run build && rm -rf dist && mkdir dist && cp index.html dist/ && cp -R lib textures music dist/ && npx wrangler pages deploy dist --project-name bear-spacewalk --branch main"
   },
   "dependencies": {
     "playwright": "^1.61.0"
