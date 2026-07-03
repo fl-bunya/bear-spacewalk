@@ -1835,12 +1835,31 @@
                     fakeMode = true; // Web Audio が使えなくても鑑賞は続行
                 }
             }
+            // 画面スリープ抑止（Wake Lock）：再生開始後、タブが表示されている間は消灯させない
+            let wakeLock = null;
+            let wakeLockWanted = false;
+            async function keepAwake() {
+                if (!("wakeLock" in navigator)) return; // 非対応ブラウザでは何もしない
+                try {
+                    wakeLock = await navigator.wakeLock.request("screen");
+                } catch (e) {
+                    /* 省電力モード中などは取得に失敗する */
+                }
+            }
+            document.addEventListener("visibilitychange", () => {
+                // バックグラウンドに回るとロックは自動解放されるため、復帰時に再取得
+                if (wakeLockWanted && document.visibilityState === "visible")
+                    keepAwake();
+            });
+
             function startAudio() {
                 ensureAudioGraph();
                 if (audioCtx) audioCtx.resume();
                 audioEl.play().catch(() => {
                     fakeMode = true;
                 });
+                wakeLockWanted = true;
+                keepAwake();
             }
 
             // 音量スライダー（控えめ表示・再生開始後に出現・設定はlocalStorageに記憶）
