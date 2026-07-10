@@ -1602,7 +1602,7 @@
                     });
             }
 
-            // ====== 黄色い熊（プリミティブによるコード造形・トゥーン調） ======
+            // ====== キャラクター共通の素材・ヘルパー ======
             const gradientMap = (() => {
                 const data = new Uint8Array([80, 160, 255]);
                 const tex = new THREE.DataTexture(data, 3, 1, THREE.RedFormat);
@@ -1611,14 +1611,6 @@
                 tex.needsUpdate = true;
                 return tex;
             })();
-            const matBear = new THREE.MeshToonMaterial({
-                color: CONFIG.bearColor,
-                gradientMap,
-            });
-            const matShirt = new THREE.MeshToonMaterial({
-                color: CONFIG.shirtColor,
-                gradientMap,
-            });
             const matSuit = new THREE.MeshToonMaterial({
                 color: 0xdfe5ec,
                 gradientMap,
@@ -1675,13 +1667,6 @@
                 tex.anisotropy = 4;
                 return tex;
             }
-            const faceTexOpen = makeFaceTexture(false);
-            const faceTexBlink = makeFaceTexture(true);
-            const matBearFace = new THREE.MeshToonMaterial({
-                color: CONFIG.bearColor,
-                gradientMap,
-                map: faceTexOpen,
-            });
 
             // シャツの文字：?shirt=文字 で任意の文字を白抜き表示（既定は無地シャツ）
             function makeLogoTexture() {
@@ -1724,143 +1709,200 @@
                 side: THREE.BackSide,
             });
 
-            const bear = new THREE.Group();
-            const outlined = []; // 輪郭線（inverted hull）を付けるメッシュ
-
-            function part(geo, mat, x, y, z, opts) {
-                const m = new THREE.Mesh(geo, mat);
-                m.position.set(x, y, z);
-                if (opts && opts.rot) m.rotation.set(...opts.rot);
-                if (opts && opts.scale) m.scale.set(...opts.scale);
-                bear.add(m);
-                if (!opts || opts.outline !== false) outlined.push(m);
-                return m;
+            // キャラ造形の土台：グループ・部品追加・輪郭線（inverted hull）
+            function charBase() {
+                const group = new THREE.Group();
+                const outlined = []; // 輪郭線を付けるメッシュ
+                function part(geo, mat, x, y, z, opts) {
+                    const m = new THREE.Mesh(geo, mat);
+                    m.position.set(x, y, z);
+                    if (opts && opts.rot) m.rotation.set(...opts.rot);
+                    if (opts && opts.scale) m.scale.set(...opts.scale);
+                    group.add(m);
+                    if (!opts || opts.outline !== false) outlined.push(m);
+                    return m;
+                }
+                // 輪郭線：本体メッシュの子にして手足の動きに追従させる
+                function applyOutlines() {
+                    for (const m of outlined) {
+                        const o = new THREE.Mesh(m.geometry, matOutline);
+                        o.scale.setScalar(1.05);
+                        m.add(o);
+                    }
+                }
+                return { group, part, applyOutlines };
             }
 
-            // 胴体・シャツ
-            part(
-                new THREE.CapsuleGeometry(0.4, 0.45, 8, 24),
-                matBear,
-                0,
-                -0.45,
-                0,
-            );
-            part(
-                new THREE.CapsuleGeometry(0.44, 0.28, 8, 24),
-                matShirt,
-                0,
-                -0.28,
-                0,
-            );
-            // ロゴ帯：シャツ前面だけを覆う開いた円筒（θ=0 が +z 正面に来る）
-            const logoBand = new THREE.Mesh(
-                new THREE.CylinderGeometry(
-                    0.455,
-                    0.455,
-                    0.34,
-                    32,
-                    1,
-                    true,
-                    -0.75,
-                    1.5,
-                ),
-                new THREE.MeshToonMaterial({
-                    color: 0xffffff,
-                    gradientMap,
-                    map: makeLogoTexture(),
-                }),
-            );
-            logoBand.position.set(0, -0.27, 0);
-            bear.add(logoBand);
-            // 頭（テクスチャの正面が +z を向くよう -90° 回転。原画に合わせ横長に潰す）・耳
-            const head = part(
-                new THREE.SphereGeometry(0.54, 48, 48),
-                matBearFace,
-                0,
-                0.4,
-                0,
-                { rot: [0, -Math.PI / 2, 0], scale: [1, 0.84, 1.24] },
-            );
-            part(
-                new THREE.SphereGeometry(0.16, 24, 24),
-                matBear,
-                -0.5,
-                0.74,
-                0,
-            );
-            part(new THREE.SphereGeometry(0.16, 24, 24), matBear, 0.5, 0.74, 0);
-            // 腕・脚（付け根を軸に動くようジオメトリをオフセット）
-            const armGeoL = new THREE.CapsuleGeometry(0.13, 0.3, 8, 16);
-            armGeoL.translate(0, 0.15, 0);
-            const armL = part(armGeoL, matBear, -0.5, -0.22, 0.1, {
-                rot: [0, 0, 0.9],
-            });
-            const armGeoR = new THREE.CapsuleGeometry(0.13, 0.3, 8, 16);
-            armGeoR.translate(0, 0.15, 0);
-            const armR = part(armGeoR, matBear, 0.52, -0.3, 0.05, {
-                rot: [0, 0, -0.7],
-            });
-            const legGeoL = new THREE.CapsuleGeometry(0.15, 0.24, 8, 16);
-            legGeoL.translate(0, -0.12, 0);
-            const legL = part(legGeoL, matBear, -0.2, -0.92, 0.06, {
-                rot: [0.25, 0, 0.15],
-            });
-            const legGeoR = new THREE.CapsuleGeometry(0.15, 0.24, 8, 16);
-            legGeoR.translate(0, -0.12, 0);
-            const legR = part(legGeoR, matBear, 0.2, -0.92, 0.06, {
-                rot: [0.25, 0, -0.15],
-            });
-            // しっぽ：お尻（酸素タンクの下）にちょこんと付く丸い毛玉
-            part(
-                new THREE.SphereGeometry(0.13, 24, 24),
-                matBear,
-                0,
-                -0.74,
-                -0.42,
-            );
             // 宇宙飛行士装備：ヘルメット（透明バブル）・首リング・酸素タンク
-            const helmet = new THREE.Mesh(
-                new THREE.SphereGeometry(0.8, 48, 48),
-                new THREE.MeshPhongMaterial({
-                    color: 0xbcd8ff,
-                    transparent: true,
-                    opacity: 0.16,
-                    shininess: 120,
-                    specular: 0xffffff,
-                    depthWrite: false,
-                }),
-            );
-            helmet.position.set(0, 0.42, 0);
-            bear.add(helmet);
-            part(
-                new THREE.TorusGeometry(0.42, 0.075, 12, 32),
-                matSuit,
-                0,
-                -0.06,
-                0,
-                { rot: [Math.PI / 2, 0, 0] },
-            );
-            part(
-                new THREE.CapsuleGeometry(0.12, 0.36, 8, 16),
-                matSuit,
-                -0.16,
-                -0.34,
-                -0.46,
-            );
-            part(
-                new THREE.CapsuleGeometry(0.12, 0.36, 8, 16),
-                matSuit,
-                0.16,
-                -0.34,
-                -0.46,
-            );
-
-            // 輪郭線（inverted hull）：本体メッシュの子にして手足の動きに追従させる
-            for (const m of outlined) {
-                const o = new THREE.Mesh(m.geometry, matOutline);
-                o.scale.setScalar(1.05);
-                m.add(o);
+            // ringRadius: 首リング半径（胴の太さに合わせてキャラごとに指定）
+            function addGear(group, part, ringRadius) {
+                const helmet = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.8, 48, 48),
+                    new THREE.MeshPhongMaterial({
+                        color: 0xbcd8ff,
+                        transparent: true,
+                        opacity: 0.16,
+                        shininess: 120,
+                        specular: 0xffffff,
+                        depthWrite: false,
+                    }),
+                );
+                helmet.position.set(0, 0.42, 0);
+                group.add(helmet);
+                part(
+                    new THREE.TorusGeometry(ringRadius, 0.075, 12, 32),
+                    matSuit,
+                    0,
+                    -0.06,
+                    0,
+                    { rot: [Math.PI / 2, 0, 0] },
+                );
+                part(
+                    new THREE.CapsuleGeometry(0.12, 0.36, 8, 16),
+                    matSuit,
+                    -0.16,
+                    -0.34,
+                    -0.46,
+                );
+                part(
+                    new THREE.CapsuleGeometry(0.12, 0.36, 8, 16),
+                    matSuit,
+                    0.16,
+                    -0.34,
+                    -0.46,
+                );
             }
+
+            // ====== 黄色い熊（プリミティブによるコード造形・トゥーン調） ======
+            function buildBear() {
+                const { group, part, applyOutlines } = charBase();
+                const matBear = new THREE.MeshToonMaterial({
+                    color: CONFIG.bearColor,
+                    gradientMap,
+                });
+                const matShirt = new THREE.MeshToonMaterial({
+                    color: CONFIG.shirtColor,
+                    gradientMap,
+                });
+                const faceTexOpen = makeFaceTexture(false);
+                const faceTexBlink = makeFaceTexture(true);
+                const matBearFace = new THREE.MeshToonMaterial({
+                    color: CONFIG.bearColor,
+                    gradientMap,
+                    map: faceTexOpen,
+                });
+
+                // 胴体・シャツ
+                part(
+                    new THREE.CapsuleGeometry(0.4, 0.45, 8, 24),
+                    matBear,
+                    0,
+                    -0.45,
+                    0,
+                );
+                part(
+                    new THREE.CapsuleGeometry(0.44, 0.28, 8, 24),
+                    matShirt,
+                    0,
+                    -0.28,
+                    0,
+                );
+                // ロゴ帯：シャツ前面だけを覆う開いた円筒（θ=0 が +z 正面に来る）
+                const logoBand = new THREE.Mesh(
+                    new THREE.CylinderGeometry(
+                        0.455,
+                        0.455,
+                        0.34,
+                        32,
+                        1,
+                        true,
+                        -0.75,
+                        1.5,
+                    ),
+                    new THREE.MeshToonMaterial({
+                        color: 0xffffff,
+                        gradientMap,
+                        map: makeLogoTexture(),
+                    }),
+                );
+                logoBand.position.set(0, -0.27, 0);
+                group.add(logoBand);
+                // 頭（テクスチャの正面が +z を向くよう -90° 回転。原画に合わせ横長に潰す）・耳
+                const head = part(
+                    new THREE.SphereGeometry(0.54, 48, 48),
+                    matBearFace,
+                    0,
+                    0.4,
+                    0,
+                    { rot: [0, -Math.PI / 2, 0], scale: [1, 0.84, 1.24] },
+                );
+                part(
+                    new THREE.SphereGeometry(0.16, 24, 24),
+                    matBear,
+                    -0.5,
+                    0.74,
+                    0,
+                );
+                part(
+                    new THREE.SphereGeometry(0.16, 24, 24),
+                    matBear,
+                    0.5,
+                    0.74,
+                    0,
+                );
+                // 腕・脚（付け根を軸に動くようジオメトリをオフセット）
+                const armGeoL = new THREE.CapsuleGeometry(0.13, 0.3, 8, 16);
+                armGeoL.translate(0, 0.15, 0);
+                const armL = part(armGeoL, matBear, -0.5, -0.22, 0.1, {
+                    rot: [0, 0, 0.9],
+                });
+                const armGeoR = new THREE.CapsuleGeometry(0.13, 0.3, 8, 16);
+                armGeoR.translate(0, 0.15, 0);
+                const armR = part(armGeoR, matBear, 0.52, -0.3, 0.05, {
+                    rot: [0, 0, -0.7],
+                });
+                const legGeoL = new THREE.CapsuleGeometry(0.15, 0.24, 8, 16);
+                legGeoL.translate(0, -0.12, 0);
+                const legL = part(legGeoL, matBear, -0.2, -0.92, 0.06, {
+                    rot: [0.25, 0, 0.15],
+                });
+                const legGeoR = new THREE.CapsuleGeometry(0.15, 0.24, 8, 16);
+                legGeoR.translate(0, -0.12, 0);
+                const legR = part(legGeoR, matBear, 0.2, -0.92, 0.06, {
+                    rot: [0.25, 0, -0.15],
+                });
+                // しっぽ：お尻（酸素タンクの下）にちょこんと付く丸い毛玉
+                part(
+                    new THREE.SphereGeometry(0.13, 24, 24),
+                    matBear,
+                    0,
+                    -0.74,
+                    -0.42,
+                );
+                addGear(group, part, 0.42); // 宇宙飛行士装備：ヘルメット・首リング・酸素タンク
+                applyOutlines(); // 輪郭線（inverted hull）
+
+                // 瞬き：3〜7秒間隔でランダム、たまに二連（状態はクロージャに保持）
+                let blinkUntil = -1;
+                let nextBlinkAt = 3;
+                function updateFace(t, forceBlink) {
+                    if (t >= nextBlinkAt) {
+                        blinkUntil = t + 0.13;
+                        nextBlinkAt =
+                            Math.random() < 0.25
+                                ? t + 0.45
+                                : t + 3 + Math.random() * 4;
+                    }
+                    matBearFace.map =
+                        forceBlink || t < blinkUntil ? faceTexBlink : faceTexOpen;
+                }
+                return { group, armL, armR, legL, legR, updateFace };
+            }
+
+            // キャラ生成（Task 2 で ?char= 選択に置き換える）
+            const character = buildBear();
+            const bear = character.group; // 配置・回転コード（既存）はこの名前で参照
+            const { armL, armR, legL, legR } = character;
 
             // ====== カメラリグ：地球を見回す遊覧カメラ + カメラに同伴する黄色い熊 ======
             // 熊はカメラの子にして常に画面内を漂わせる。カメラがどこを向いても一緒に遊泳する
@@ -2430,8 +2472,6 @@
             const forceMilky = location.search.indexOf("milky") !== -1; // 確認用：天の川を常時表示
             const forceZodiac = location.search.indexOf("zodiac") !== -1; // 確認用：昼の光の帯を常時表示
             const forceDay = location.search.indexOf("forceday") !== -1; // 確認用：昼構図を強制（太陽をカメラ側へ）
-            let blinkUntil = -1;
-            let nextBlinkAt = 3;
             let flailStart = -10;
             let flailDur = 1;
             let nextFlailAt = 6;
@@ -2585,16 +2625,8 @@
 
                 if (isPreview) bear.rotation.set(0, 0, 0); // 撮影確認用に正面固定
 
-                // 瞬き：3〜7秒間隔でランダム、たまに二連
-                if (t >= nextBlinkAt) {
-                    blinkUntil = t + 0.13;
-                    nextBlinkAt =
-                        Math.random() < 0.25
-                            ? t + 0.45
-                            : t + 3 + Math.random() * 4;
-                }
-                matBearFace.map =
-                    forceBlink || t < blinkUntil ? faceTexBlink : faceTexOpen;
+                // 瞬き・表情はキャラ側に委譲（熊: 3〜7秒間隔のまばたき / mspn: 固定顔）
+                character.updateFace(t, forceBlink);
 
                 // 手足バタバタ：7〜15秒ごとに1.4〜2.2秒、なめらかに始まり収まる
                 if (t >= nextFlailAt) {
