@@ -1952,13 +1952,14 @@
                     scale: [1, 1, 0.92],
                 });
                 // 頭（顔テクスチャの正面が +z を向くよう -90° 回転。前面を広めに見せてトゥーン陰影で顔が暗く潰れないように）
-                part(new THREE.SphereGeometry(0.4, 48, 48), matFace, 0, 0.42, 0, {
+                // 幅は胴と同じ0.88。下端を胴に深く重ねて首元に胴の輪郭線が露出しないように
+                part(new THREE.SphereGeometry(0.44, 48, 48), matFace, 0, 0.38, 0, {
                     rot: [0, -Math.PI / 2, 0],
                     scale: [1, 0.88, 1.18],
                 });
-                // 耳：原画同様の小さな出っ張りに
-                part(new THREE.SphereGeometry(0.06, 24, 24), matBody, -0.23, 0.71, 0);
-                part(new THREE.SphereGeometry(0.06, 24, 24), matBody, 0.23, 0.71, 0);
+                // 耳：原画同様の小さな出っ張り（頭頂にはっきり見えるサイズ）
+                part(new THREE.SphereGeometry(0.09, 24, 24), matBody, -0.26, 0.75, 0);
+                part(new THREE.SphereGeometry(0.09, 24, 24), matBody, 0.26, 0.75, 0);
                 // 腕：短いカプセル（付け根を軸に回転できるようオフセット）
                 const armGeoL = new THREE.CapsuleGeometry(0.11, 0.14, 8, 16);
                 armGeoL.translate(0, 0.07, 0);
@@ -1984,7 +1985,7 @@
                 // しっぽ：お尻に丸く
                 part(new THREE.SphereGeometry(0.11, 24, 24), matBody, 0, -0.75, -0.45);
 
-                addGear(group, part, 0.46); // 胴の幅に合わせて首リングを調整
+                addGear(group, part, 0.42); // 首リングは熊と同径（胴r0.44≒熊のシャツ幅）
                 applyOutlines();
 
                 return {
