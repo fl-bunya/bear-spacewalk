@@ -1734,10 +1734,21 @@
             }
 
             // 宇宙飛行士装備：ヘルメット（透明バブル）・首リング・酸素タンク
-            // ringRadius: 首リング半径（胴の太さに合わせてキャラごとに指定）
-            function addGear(group, part, ringRadius) {
+            // 体格の違うキャラごとに位置・サイズを指定できるようパラメータ化（既定値は熊の値）
+            function addGear(
+                group,
+                part,
+                {
+                    ringRadius,
+                    ringY = -0.06,
+                    helmetRadius = 0.8,
+                    helmetY = 0.42,
+                    tankY = -0.34,
+                    tankZ = -0.46,
+                },
+            ) {
                 const helmet = new THREE.Mesh(
-                    new THREE.SphereGeometry(0.8, 48, 48),
+                    new THREE.SphereGeometry(helmetRadius, 48, 48),
                     new THREE.MeshPhongMaterial({
                         color: 0xbcd8ff,
                         transparent: true,
@@ -1747,13 +1758,13 @@
                         depthWrite: false,
                     }),
                 );
-                helmet.position.set(0, 0.42, 0);
+                helmet.position.set(0, helmetY, 0);
                 group.add(helmet);
                 part(
                     new THREE.TorusGeometry(ringRadius, 0.075, 12, 32),
                     matSuit,
                     0,
-                    -0.06,
+                    ringY,
                     0,
                     { rot: [Math.PI / 2, 0, 0] },
                 );
@@ -1761,15 +1772,15 @@
                     new THREE.CapsuleGeometry(0.12, 0.36, 8, 16),
                     matSuit,
                     -0.16,
-                    -0.34,
-                    -0.46,
+                    tankY,
+                    tankZ,
                 );
                 part(
                     new THREE.CapsuleGeometry(0.12, 0.36, 8, 16),
                     matSuit,
                     0.16,
-                    -0.34,
-                    -0.46,
+                    tankY,
+                    tankZ,
                 );
             }
 
@@ -1879,7 +1890,7 @@
                     -0.74,
                     -0.42,
                 );
-                addGear(group, part, 0.42); // 宇宙飛行士装備：ヘルメット・首リング・酸素タンク
+                addGear(group, part, { ringRadius: 0.42 }); // 宇宙飛行士装備：ヘルメット・首リング・酸素タンク
                 applyOutlines(); // 輪郭線（inverted hull）
 
                 // 瞬き：3〜7秒間隔でランダム、たまに二連（状態はクロージャに保持）
@@ -1947,12 +1958,12 @@
                     map: makeMspnFaceTexture(),
                 });
 
-                // 胴：頭と同じかやや広い幅のカプセルで、原画同様に頭でっかちにならない体型に（服なし・全身同色）
-                part(new THREE.CapsuleGeometry(0.44, 0.42, 8, 24), matBody, 0, -0.52, 0, {
-                    scale: [1, 1, 0.92],
+                // 胴：卵型（下すぼまりなし・裾広がり）のスフィア。頭に深く重ねて首のくびれを作らず、
+                // 頬→なで肩→腕→お尻へひと続きの寸胴シルエットにする（服なし・全身同色）
+                part(new THREE.SphereGeometry(0.46, 48, 48), matBody, 0, -0.22, 0, {
+                    scale: [1, 1.05, 0.95],
                 });
                 // 頭（顔テクスチャの正面が +z を向くよう -90° 回転。前面を広めに見せてトゥーン陰影で顔が暗く潰れないように）
-                // 幅は胴と同じ0.88。下端を胴に深く重ねて首元に胴の輪郭線が露出しないように
                 part(new THREE.SphereGeometry(0.44, 48, 48), matFace, 0, 0.38, 0, {
                     rot: [0, -Math.PI / 2, 0],
                     scale: [1, 0.88, 1.18],
@@ -1960,32 +1971,39 @@
                 // 耳：原画同様の小さな出っ張り（頭頂にはっきり見えるサイズ）
                 part(new THREE.SphereGeometry(0.09, 24, 24), matBody, -0.26, 0.75, 0);
                 part(new THREE.SphereGeometry(0.09, 24, 24), matBody, 0.26, 0.75, 0);
-                // 腕：短いカプセル（付け根を軸に回転できるようオフセット）
+                // 腕：なで肩の斜面からちょこんと出る短いカプセル（付け根を軸に回転できるようオフセット）
                 const armGeoL = new THREE.CapsuleGeometry(0.11, 0.14, 8, 16);
                 armGeoL.translate(0, 0.07, 0);
-                const armL = part(armGeoL, matBody, -0.46, -0.32, 0.08, {
+                const armL = part(armGeoL, matBody, -0.42, -0.12, 0.05, {
                     rot: [0, 0, 0.9],
                 });
                 const armGeoR = new THREE.CapsuleGeometry(0.11, 0.14, 8, 16);
                 armGeoR.translate(0, 0.07, 0);
-                const armR = part(armGeoR, matBody, 0.48, -0.38, 0.05, {
+                const armR = part(armGeoR, matBody, 0.44, -0.16, 0.05, {
                     rot: [0, 0, -0.7],
                 });
-                // 脚：短いカプセル
+                // 脚：胴の裾から覗く小さなカプセル
                 const legGeoL = new THREE.CapsuleGeometry(0.13, 0.1, 8, 16);
                 legGeoL.translate(0, -0.05, 0);
-                const legL = part(legGeoL, matBody, -0.19, -0.98, 0.05, {
+                const legL = part(legGeoL, matBody, -0.22, -0.72, 0.05, {
                     rot: [0.25, 0, 0.15],
                 });
                 const legGeoR = new THREE.CapsuleGeometry(0.13, 0.1, 8, 16);
                 legGeoR.translate(0, -0.05, 0);
-                const legR = part(legGeoR, matBody, 0.19, -0.98, 0.05, {
+                const legR = part(legGeoR, matBody, 0.22, -0.72, 0.05, {
                     rot: [0.25, 0, -0.15],
                 });
                 // しっぽ：お尻に丸く
-                part(new THREE.SphereGeometry(0.11, 24, 24), matBody, 0, -0.75, -0.45);
+                part(new THREE.SphereGeometry(0.11, 24, 24), matBody, 0, -0.55, -0.36);
 
-                addGear(group, part, 0.42); // 首リングは熊と同径（胴r0.44≒熊のシャツ幅）
+                // 装備：ヘルメットは頭だけを包み、リムが首元（頭と胴の境目）から始まる。
+                // リングはその境目に密着させ「肩に乗るヘルメットの襟」に見せる
+                addGear(group, part, {
+                    ringRadius: 0.36,
+                    ringY: 0.1,
+                    helmetRadius: 0.55,
+                    helmetY: 0.45,
+                });
                 applyOutlines();
 
                 return {
