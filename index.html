@@ -1924,23 +1924,23 @@
                 g.lineWidth = 9;
                 // 目：目尻（外側）が下がる短いタレ目。原画は約45〜50°の急な傾きの
                 // 手描きストロークなので、ごく浅いカーブで再現
-                // 目の間をさらに詰め（内側の間隔144→120px）、目・口とも少し下げる（+10px）
+                // 目の間は内側の間隔120px、目・口の高さはオーナー指示で微調整済み
                 g.beginPath();
-                g.moveTo(434, 210);
-                g.quadraticCurveTo(440, 199, 452, 190);
+                g.moveTo(434, 220);
+                g.quadraticCurveTo(440, 209, 452, 200);
                 g.stroke();
                 g.beginPath();
-                g.moveTo(590, 210);
-                g.quadraticCurveTo(584, 199, 572, 190);
+                g.moveTo(590, 220);
+                g.quadraticCurveTo(584, 209, 572, 200);
                 g.stroke();
                 // 口：小さな∧
                 g.beginPath();
-                g.moveTo(512, 240);
-                g.lineTo(499, 252);
+                g.moveTo(512, 250);
+                g.lineTo(499, 262);
                 g.stroke();
                 g.beginPath();
-                g.moveTo(512, 240);
-                g.lineTo(525, 252);
+                g.moveTo(512, 250);
+                g.lineTo(525, 262);
                 g.stroke();
                 const tex = new THREE.CanvasTexture(cv);
                 tex.encoding = THREE.sRGBEncoding;
@@ -1971,7 +1971,7 @@
                 // （完全な水平カットにはせず、原画の手描きの丸みを少し残す）
                 const headGeo = new THREE.SphereGeometry(0.43, 48, 48);
                 const headCap = 0.43 * 0.68; // 頭頂クランプ開始の高さ
-                const headCapSoftness = 0.45; // クランプ後に残す丸み（0=完全平ら、1=無変化）
+                const headCapSoftness = 0.6; // クランプ後に残す丸み（0=完全平ら、1=無変化）
                 const headPos = headGeo.attributes.position;
                 for (let i = 0; i < headPos.count; i++) {
                     const y = headPos.getY(i);
@@ -1984,8 +1984,8 @@
                     scale: [1, 1.05, 1.18],
                 });
                 // 耳：平らな頭頂からRの側面へ移る「角」に乗るように配置（旧：ドーム頂点付近）
-                part(new THREE.SphereGeometry(0.11, 24, 24), matBody, -0.3, 0.63, 0);
-                part(new THREE.SphereGeometry(0.11, 24, 24), matBody, 0.3, 0.63, 0);
+                part(new THREE.SphereGeometry(0.11, 24, 24), matBody, -0.33, 0.66, 0);
+                part(new THREE.SphereGeometry(0.11, 24, 24), matBody, 0.33, 0.66, 0);
                 // 腕：なで肩の斜面からちょこんと出る短いカプセル（付け根を軸に回転できるようオフセット）
                 const armGeoL = new THREE.CapsuleGeometry(0.11, 0.14, 8, 16);
                 armGeoL.translate(0, 0.07, 0);
