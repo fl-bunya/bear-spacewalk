@@ -682,6 +682,146 @@
             );
             scene.add(milky);
 
+            // ====== 彗星（天の川の帯と逆側＝銀河極寄りの空に置く静かな飾り） ======
+            // シアンに輝くコマ＋白紫の尾をCanvasに描き、加算スプライトで天球に貼る。
+            // 表示は天の川と同じ夜側フェード（milkyVis）に連動する。
+            function makeCometTexture() {
+                const cv = document.createElement("canvas");
+                cv.width = 512;
+                cv.height = 1024;
+                const g = cv.getContext("2d");
+                g.globalCompositeOperation = "lighter"; // ガス同士が光として足し合わさる
+                // 尾の経路：コマ（上）から下へ。降りながら左へ流されるベジェ曲線
+                const P0 = [300, 80],
+                    P1 = [255, 460],
+                    P2 = [140, 960];
+                const path = (q) => {
+                    const u = 1 - q;
+                    return [
+                        u * u * P0[0] + 2 * u * q * P1[0] + q * q * P2[0],
+                        u * u * P0[1] + 2 * u * q * P1[1] + q * q * P2[1],
+                    ];
+                };
+                const perp = (q) => {
+                    // 接線の法線（尾を垂直方向に開かせるため）
+                    const u = 1 - q;
+                    const dx = 2 * u * (P1[0] - P0[0]) + 2 * q * (P2[0] - P1[0]);
+                    const dy = 2 * u * (P1[1] - P0[1]) + 2 * q * (P2[1] - P1[1]);
+                    const l = Math.hypot(dx, dy);
+                    return [-dy / l, dx / l];
+                };
+                // 色：頭部シアン白 → 中間ラベンダー → 末端の青紫 へ遷移
+                const stops = [
+                    [200, 250, 255],
+                    [220, 205, 255],
+                    [175, 165, 245],
+                ];
+                const colAt = (q) => {
+                    const p = q * (stops.length - 1);
+                    const i = Math.min(stops.length - 2, Math.floor(p));
+                    const f = p - i;
+                    return stops[i].map((c, k) =>
+                        Math.round(c + (stops[i + 1][k] - c) * f),
+                    );
+                };
+                const rnd = (() => {
+                    // 描画のたびに姿が変わらないよう seed 固定の擬似乱数
+                    let s = 1234567;
+                    return () => {
+                        s = (s * 48271) % 2147483647;
+                        return s / 2147483647;
+                    };
+                })();
+                const blob = (x, y, r, rgb, a) => {
+                    const grad = g.createRadialGradient(x, y, 0, x, y, r);
+                    grad.addColorStop(0, `rgba(${rgb.join(",")},${a})`);
+                    grad.addColorStop(1, `rgba(${rgb.join(",")},0)`);
+                    g.fillStyle = grad;
+                    g.fillRect(x - r, y - r, r * 2, r * 2);
+                };
+                // 本体のガス：付け根は散らばらず締まった尾を引き、後半（q²で効く）は
+                // 散って広く伸びる。広がりは左（法線の正側）へ偏らせて流される感じに
+                for (let i = 0; i < 300; i++) {
+                    const q = Math.pow(rnd(), 0.75); // 頭寄りをやや濃く
+                    const [x, y] = path(q);
+                    const [nx, ny] = perp(q);
+                    const spread = (3 + 110 * q * q) * (rnd() * 1.7 - 0.5);
+                    const r = (8 + 62 * q) * (0.5 + rnd() * 0.5);
+                    blob(
+                        x + nx * spread + (rnd() - 0.5) * 34 * q,
+                        y + ny * spread + (rnd() - 0.5) * 34 * q,
+                        r,
+                        colAt(q),
+                        0.065 * Math.pow(1 - q, 1.15), // 末端は完全にフェードさせ縁を出さない
+                    );
+                }
+                // ファイバー：尾の中を走る細い光の筋。付け根では束のまま、後半で扇状に散る
+                for (let f = 0; f < 9; f++) {
+                    const o = (f / 8) * 1.6 - 0.4; // -0.4..1.2（扇も左寄りに開く）
+                    const phase = rnd() * Math.PI * 2;
+                    const rgb = colAt(0.25 + 0.5 * rnd());
+                    for (let i = 0; i < 150; i++) {
+                        const q = i / 149;
+                        const [x, y] = path(q);
+                        const [nx, ny] = perp(q);
+                        const off =
+                            o * 95 * q * q + Math.sin(q * 9 + phase) * 4 * q;
+                        blob(
+                            x + nx * off,
+                            y + ny * off,
+                            2.5 + 12 * q,
+                            rgb,
+                            0.045 * (1 - q),
+                        );
+                    }
+                }
+                // コマ：地味な光暈。点光源にせず、尾の方向へ丸く伸びていく
+                // ストリーム状の光として描く
+                const [hx, hy] = P0;
+                blob(hx, hy, 58, [70, 190, 175], 0.16);
+                for (let i = 0; i < 30; i++) {
+                    const q = i / 105; // コマから尾の付け根 q≈0.28 までゆっくり減衰
+                    const [x, y] = path(q);
+                    blob(
+                        x,
+                        y,
+                        26 - i * 0.4,
+                        [185, 245, 238],
+                        0.12 * (1 - i / 32),
+                    );
+                }
+                const tex = new THREE.CanvasTexture(cv);
+                tex.encoding = THREE.sRGBEncoding;
+                tex.anisotropy = 4;
+                return tex;
+            }
+            const cometMat = new THREE.SpriteMaterial({
+                map: makeCometTexture(),
+                blending: THREE.AdditiveBlending,
+                transparent: true,
+                depthWrite: false,
+                opacity: 0, // 「静かな空」のときだけ renderPost がフェードインさせる
+            });
+            const comet = new THREE.Sprite(cometMat);
+            // 位置は固定しない：「静かな空」（太陽・月が画面外で天の川も見えない）が
+            // 訪れるたび、そのときの視界に合わせて renderPost 内で決め直す。
+            // 実時刻の太陽・月・昼夜に依存するので、出現タイミングも位置も毎回変わる
+            // 確認用（?comet)：起動直後の視界中央寄りに固定し、常時表示にする
+            const forceComet = location.search.indexOf("comet") !== -1;
+            comet.scale.set(34, 68, 1); // 縦長（テクスチャ512×1024と同アスペクト）
+            // 星や星雲と同じ遠景なので、天の川球の子にして星空と一緒に回す
+            // （確認モードだけは見失わないよう視界に固定＝scene直付け）
+            if (forceComet) {
+                comet.position
+                    .set(-0.81, 0.49, -0.33)
+                    .normalize()
+                    .multiplyScalar(135);
+                cometMat.opacity = 1;
+                scene.add(comet);
+            } else {
+                milky.add(comet); // 位置は初回の「静かな空」で決まる（それまで透明）
+            }
+
             // ====== 昼の光の帯（黄道光風）：夜の天の川に対応する“昼版”。太陽方向から空へ淡い暖色ヘイズ ======
             const zodiacMat = new THREE.ShaderMaterial({
                 uniforms: {
@@ -2189,6 +2329,12 @@
             // 後処理パイプライン本体
             let milkyVis = 0; // 天の川の表示度（夜側半球で 1 へ、昼側で 0 へフェード）
             let zodiacVis = 0; // 昼の光の帯の表示度（昼側で 1 へ）
+            let cometVis = 0; // 彗星の表示度（出現後 1 へ）
+            let cometBorn = false; // 一度出現したらセッション中ずっといる
+            const _cometFwd = new THREE.Vector3();
+            const _cometRight = new THREE.Vector3();
+            const _cometV = new THREE.Vector3();
+            const _cometUp = new THREE.Vector3(0, 1, 0);
             function renderPost() {
                 // カメラが地球の夜側半球に入ったら天の川を浮かび上がらせる（ゆっくりフェード）
                 milkyVis += (cameraNightness() - milkyVis) * 0.12;
@@ -2196,6 +2342,48 @@
                 // 昼側では“光の帯”を浮かび上がらせる（天の川と昼夜クロスフェード）
                 zodiacVis += (1 - cameraNightness() - zodiacVis) * 0.12;
                 zodiacMat.uniforms.uVisible.value = forceZodiac ? 1 : zodiacVis;
+
+                // 彗星の初回出現：太陽・月が画面外で天の川も見えない瞬間が来たら、
+                // そのときの視界の左寄り・やや下に位置を決めて現れる（実時刻の太陽・月・
+                // 昼夜に依存するため毎回変わる）。一度現れたら、以降は太陽や月が視界に
+                // 戻ってきても消えずに共存し、星空と一緒に流れ続ける
+                if (!forceComet) {
+                    if (!cometBorn) {
+                        camera.getWorldDirection(_cometFwd);
+                        const cHHalf = Math.atan(
+                            Math.tan(
+                                THREE.MathUtils.degToRad(camera.fov) * 0.5,
+                            ) * camera.aspect,
+                        );
+                        _cometV
+                            .copy(moon.position)
+                            .sub(camera.position)
+                            .normalize();
+                        const moonIn =
+                            _cometV.dot(_cometFwd) > Math.cos(cHHalf + 0.15);
+                        if (
+                            sunScreen().fade <= 0 &&
+                            !moonIn &&
+                            milkyVis < 0.25
+                        ) {
+                            _cometRight
+                                .crossVectors(_cometFwd, camera.up)
+                                .normalize();
+                            _cometV
+                                .copy(_cometFwd)
+                                .applyAxisAngle(_cometRight, -0.06) // 画面のやや下へ
+                                .applyAxisAngle(_cometUp, cHHalf * 0.35) // 画面左寄りへ
+                                .multiplyScalar(135) // 星殻(115-165)内・天の川球(150)の手前
+                                .add(camera.position)
+                                .applyAxisAngle(_cometUp, -milky.rotation.y); // 親（回る空）のローカル座標へ
+                            comet.position.copy(_cometV);
+                            cometBorn = true;
+                        }
+                    } else if (cometVis < 1) {
+                        cometVis += (1 - cometVis) * 0.02; // 出現時だけ短くフェードイン
+                        cometMat.opacity = cometVis;
+                    }
+                }
 
                 renderer.setRenderTarget(sceneRT);
                 renderer.render(scene, camera);
