@@ -1962,7 +1962,23 @@
 
                 // 胴：卵型（下すぼまりなし・裾広がり）のスフィア。頭に深く重ねて首のくびれを作らず、
                 // 頬→なで肩→腕→お尻へひと続きの寸胴シルエットにする（服なし・全身同色）
-                part(new THREE.SphereGeometry(0.46, 48, 48), matBody, 0, -0.22, 0, {
+                // 底面を彫る：股（中央）を逆R（∩）のアーチに持ち上げ、脚が付く両角は低いまま残す
+                const bodyGeo = new THREE.SphereGeometry(0.46, 48, 48);
+                const bodyBottom = -0.46 * 0.5; // ここより下をアーチ加工の対象に
+                const crotchHalfW = 0.3; // アーチの半幅（両脚の間隔に対応）
+                const crotchLift = 0.7; // 持ち上げ量（0=無変化、1=bodyBottomまで平ら）
+                const bodyPos = bodyGeo.attributes.position;
+                for (let i = 0; i < bodyPos.count; i++) {
+                    const bx = bodyPos.getX(i);
+                    const by = bodyPos.getY(i);
+                    if (by < bodyBottom) {
+                        // 中央（x=0）ほど強く持ち上げる放物線の重み
+                        const t = Math.max(0, 1 - (bx / crotchHalfW) ** 2);
+                        bodyPos.setY(i, by + (bodyBottom - by) * crotchLift * t);
+                    }
+                }
+                bodyGeo.computeVertexNormals();
+                part(bodyGeo, matBody, 0, -0.22, 0, {
                     scale: [1, 1.05, 0.95],
                 });
                 // 頭（顔テクスチャの正面が +z を向くよう -90° 回転。前面を広めに見せてトゥーン陰影で顔が暗く潰れないように）
@@ -1997,15 +2013,15 @@
                 const armR = part(armGeoR, matBody, 0.44, -0.16, 0.05, {
                     rot: [0, 0, -0.7],
                 });
-                // 脚：胴の裾から覗く小さなカプセル
-                const legGeoL = new THREE.CapsuleGeometry(0.13, 0.1, 8, 16);
-                legGeoL.translate(0, -0.05, 0);
-                const legL = part(legGeoL, matBody, -0.22, -0.72, 0.05, {
+                // 脚：股のアーチ両脇の「角」からちょこんと覗く短いこぶ（股下短く、腿はほぼ胴に隠す）
+                const legGeoL = new THREE.CapsuleGeometry(0.13, 0.08, 8, 16);
+                legGeoL.translate(0, -0.04, 0);
+                const legL = part(legGeoL, matBody, -0.28, -0.64, 0.05, {
                     rot: [0.25, 0, 0.15],
                 });
-                const legGeoR = new THREE.CapsuleGeometry(0.13, 0.1, 8, 16);
-                legGeoR.translate(0, -0.05, 0);
-                const legR = part(legGeoR, matBody, 0.22, -0.72, 0.05, {
+                const legGeoR = new THREE.CapsuleGeometry(0.13, 0.08, 8, 16);
+                legGeoR.translate(0, -0.04, 0);
+                const legR = part(legGeoR, matBody, 0.28, -0.64, 0.05, {
                     rot: [0.25, 0, -0.15],
                 });
                 // しっぽ：お尻に丸く
