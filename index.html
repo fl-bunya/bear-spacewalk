@@ -1652,6 +1652,14 @@
             const legR = part(legGeoR, matBear, 0.2, -0.92, 0.06, {
                 rot: [0.25, 0, -0.15],
             });
+            // しっぽ：お尻（酸素タンクの下）にちょこんと付く丸い毛玉
+            part(
+                new THREE.SphereGeometry(0.13, 24, 24),
+                matBear,
+                0,
+                -0.74,
+                -0.42,
+            );
             // 宇宙飛行士装備：ヘルメット（透明バブル）・首リング・酸素タンク
             const helmet = new THREE.Mesh(
                 new THREE.SphereGeometry(0.8, 48, 48),
