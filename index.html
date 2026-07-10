@@ -185,7 +185,9 @@
                 cursor: pointer;
                 display: none; /* プレイリスト読み込み後に表示 */
                 transition: color 0.2s ease;
-                transform: translateY(-1px); /* « » は字面が下寄りのため光学中央に補正 */
+                transform: translateY(
+                    -1px
+                ); /* « » は字面が下寄りのため光学中央に補正 */
             }
             @media (hover: hover) {
                 #nowplaying button:hover,
@@ -260,7 +262,8 @@
                 shirtColor: 0x1f7fd0, // シャツの青
                 earthRadius: 7.0,
                 earthPos: [-3.2, -8.6, -1.5],
-                bearOffset: [0.42, 0, -1.05], // カメラ至近に置く（最接近時の地表より必ず手前＝地球に隠れない）
+                bearOffset: [0.42, 0, -1.05], // カメラ至近に置く（最接近時の地表より必ず手前＝地球に隠れない）。x は初期値で、毎フレーム bearXFrac から再計算
+                bearXFrac: 0.48, // 熊のx位置＝水平視野半幅に対する割合。画角・アスペクト比が変わっても画面内に収まる
                 bearScale: 0.11, // 至近距離でも画面上ではほどよい大きさになる縮小率
                 starCount: 5000,
                 earthSpin: 0.02, // 自転速度 rad/s（timeSync無効時の演出速度）
@@ -352,8 +355,13 @@
             const scene = new THREE.Scene();
             scene.background = new THREE.Color(0x02030a);
 
+            // 縦長画面では垂直fovを広げて水平視野の激減を緩和する（横長は50°のまま）。
+            // 水平画角を完全に維持しようとすると縦長で120°超の魚眼になるため、緩やかな補正に留める
+            function fovForAspect(aspect) {
+                return 50 + Math.max(0, 1 - aspect) * 22;
+            }
             const camera = new THREE.PerspectiveCamera(
-                50,
+                fovForAspect(window.innerWidth / window.innerHeight),
                 window.innerWidth / window.innerHeight,
                 0.1,
                 200,
@@ -2368,9 +2376,15 @@
 
                 // 熊：地平線の少し下＝大地を背景に、地球の手前を一定のゆっくりペースで漂う
                 // （音楽連動は宇宙遊泳の静けさを損なうため体の動きには入れない）
-                const bearElev = horizonElev - 0.15; // 地平線より下に置き「地球の手前」に見せる
+                const bearElev = horizonElev - 0.18; // 地平線より下に置き「地球の手前」に見せる
+                // x は「熊の奥行きでの水平視野半幅×比率」で毎フレーム算出。ゆらぎ幅も半幅比で
+                // スケールさせ、縦長画面・ウインドウリサイズでも常に画面内に収まる
+                const bearHalfW =
+                    Math.tan(THREE.MathUtils.degToRad(camera.fov) * 0.5) *
+                    camera.aspect *
+                    Math.abs(CONFIG.bearOffset[2]);
                 bear.position.set(
-                    CONFIG.bearOffset[0] + Math.sin(t * 0.31) * 0.06,
+                    bearHalfW * (CONFIG.bearXFrac + Math.sin(t * 0.31) * 0.07),
                     Math.abs(CONFIG.bearOffset[2]) * Math.tan(bearElev) +
                         Math.sin(t * 0.23 + 1.2) * 0.025,
                     CONFIG.bearOffset[2] + Math.sin(t * 0.17 + 2.4) * 0.03,
@@ -2471,6 +2485,7 @@
                 hW = Math.max(1, W >> 1);
                 hH = Math.max(1, H >> 1);
                 camera.aspect = W / H;
+                camera.fov = fovForAspect(camera.aspect);
                 camera.updateProjectionMatrix();
                 renderer.setSize(W, H);
                 sceneRT.setSize(W, H);
