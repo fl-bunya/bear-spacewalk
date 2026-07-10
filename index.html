@@ -1970,8 +1970,8 @@
                 // 頭頂部を平らに：スケール前のジオメトリ空間で上側の頂点を高さCAPにソフトクランプ
                 // （完全な水平カットにはせず、原画の手描きの丸みを少し残す）
                 const headGeo = new THREE.SphereGeometry(0.43, 48, 48);
-                const headCap = 0.43 * 0.6; // 頭頂クランプ開始の高さ
-                const headCapSoftness = 0.25; // クランプ後に残す丸み（0=完全平ら、1=無変化）
+                const headCap = 0.43 * 0.68; // 頭頂クランプ開始の高さ
+                const headCapSoftness = 0.45; // クランプ後に残す丸み（0=完全平ら、1=無変化）
                 const headPos = headGeo.attributes.position;
                 for (let i = 0; i < headPos.count; i++) {
                     const y = headPos.getY(i);
