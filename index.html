@@ -1913,12 +1913,12 @@
                 g.lineWidth = 9;
                 // 目：目尻（外側）が下がる短い線のタレ目（左右）
                 g.beginPath();
-                g.moveTo(392, 236);
-                g.lineTo(434, 222);
+                g.moveTo(400, 233);
+                g.lineTo(426, 225);
                 g.stroke();
                 g.beginPath();
-                g.moveTo(632, 236);
-                g.lineTo(590, 222);
+                g.moveTo(624, 233);
+                g.lineTo(598, 225);
                 g.stroke();
                 // 口：小さな∧
                 g.beginPath();
@@ -1947,18 +1947,18 @@
                     map: makeMspnFaceTexture(),
                 });
 
-                // 胴：頭と重なる幅広カプセルで洋ナシ型のずんぐり体型に（服なし・全身同色）
-                part(new THREE.CapsuleGeometry(0.48, 0.3, 8, 24), matBody, 0, -0.5, 0, {
+                // 胴：頭と同じかやや広い幅のカプセルで、原画同様に頭でっかちにならない体型に（服なし・全身同色）
+                part(new THREE.CapsuleGeometry(0.44, 0.42, 8, 24), matBody, 0, -0.52, 0, {
                     scale: [1, 1, 0.92],
                 });
                 // 頭（顔テクスチャの正面が +z を向くよう -90° 回転。前面を広めに見せてトゥーン陰影で顔が暗く潰れないように）
-                part(new THREE.SphereGeometry(0.5, 48, 48), matFace, 0, 0.38, 0, {
+                part(new THREE.SphereGeometry(0.4, 48, 48), matFace, 0, 0.42, 0, {
                     rot: [0, -Math.PI / 2, 0],
                     scale: [1, 0.88, 1.18],
                 });
-                // 耳：熊より小さめ
-                part(new THREE.SphereGeometry(0.11, 24, 24), matBody, -0.3, 0.82, 0);
-                part(new THREE.SphereGeometry(0.11, 24, 24), matBody, 0.3, 0.82, 0);
+                // 耳：原画同様の小さな出っ張りに
+                part(new THREE.SphereGeometry(0.06, 24, 24), matBody, -0.23, 0.71, 0);
+                part(new THREE.SphereGeometry(0.06, 24, 24), matBody, 0.23, 0.71, 0);
                 // 腕：短いカプセル（付け根を軸に回転できるようオフセット）
                 const armGeoL = new THREE.CapsuleGeometry(0.11, 0.14, 8, 16);
                 armGeoL.translate(0, 0.07, 0);
@@ -1984,7 +1984,7 @@
                 // しっぽ：お尻に丸く
                 part(new THREE.SphereGeometry(0.11, 24, 24), matBody, 0, -0.75, -0.45);
 
-                addGear(group, part, 0.5); // 胴が太いぶん首リングは熊より大きめ
+                addGear(group, part, 0.46); // 胴の幅に合わせて首リングを調整
                 applyOutlines();
 
                 return {
