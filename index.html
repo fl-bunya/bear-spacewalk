@@ -65,10 +65,14 @@
                 border-color: transparent transparent transparent #dcebff;
                 margin-left: 7px; /* 三角形の重心ぶん右へ寄せて光学中央に */
             }
-            #start:hover {
-                background: rgba(70, 120, 210, 0.38);
-                box-shadow: 0 0 42px rgba(96, 165, 250, 0.6);
-                transform: scale(1.08);
+            /* hover装飾はマウス等のホバー可能環境のみ。タッチではタップ後に
+               hover状態が貼り付いて色が残るため適用しない（sticky hover対策） */
+            @media (hover: hover) {
+                #start:hover {
+                    background: rgba(70, 120, 210, 0.38);
+                    box-shadow: 0 0 42px rgba(96, 165, 250, 0.6);
+                    transform: scale(1.08);
+                }
             }
             #overlay p {
                 font-size: 13px;
@@ -101,8 +105,10 @@
             #volume.show {
                 display: flex;
             }
-            #volume:hover {
-                opacity: 0.85;
+            @media (hover: hover) {
+                #volume:hover {
+                    opacity: 0.85;
+                }
             }
             #volume input {
                 width: 90px;
@@ -125,8 +131,10 @@
             #music.show {
                 display: flex;
             }
-            #music:hover {
-                opacity: 0.9;
+            @media (hover: hover) {
+                #music:hover {
+                    opacity: 0.9;
+                }
             }
             #music label {
                 color: rgba(180, 205, 255, 0.85);
@@ -179,9 +187,11 @@
                 transition: color 0.2s ease;
                 transform: translateY(-1px); /* « » は字面が下寄りのため光学中央に補正 */
             }
-            #nowplaying button:hover,
-            #nowplaying span:hover {
-                color: rgba(215, 235, 255, 0.95);
+            @media (hover: hover) {
+                #nowplaying button:hover,
+                #nowplaying span:hover {
+                    color: rgba(215, 235, 255, 0.95);
+                }
             }
             #overlay .hint {
                 font-size: 11px;
