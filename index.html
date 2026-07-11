@@ -1978,8 +1978,8 @@
                     }
                 }
                 bodyGeo.computeVertexNormals();
-                part(bodyGeo, matBody, 0, -0.22, 0, {
-                    scale: [1, 1.05, 0.95],
+                part(bodyGeo, matBody, 0, -0.26, 0, {
+                    scale: [1, 1.15, 0.95], // 縦に少し長め＝リング下の下半身に量感を出す
                 });
                 // 頭（顔テクスチャの正面が +z を向くよう -90° 回転。前面を広めに見せてトゥーン陰影で顔が暗く潰れないように）
                 // 縦に少し長い楕円にして、頬の輪郭が（ ）のような緩いRの縦アークになるように
@@ -2016,25 +2016,25 @@
                 // 脚：股のアーチ両脇の「角」からちょこんと覗く短いこぶ（股下短く、腿はほぼ胴に隠す）
                 const legGeoL = new THREE.CapsuleGeometry(0.13, 0.08, 8, 16);
                 legGeoL.translate(0, -0.04, 0);
-                const legL = part(legGeoL, matBody, -0.28, -0.64, 0.05, {
+                const legL = part(legGeoL, matBody, -0.28, -0.7, 0.05, {
                     rot: [0.25, 0, 0.15],
                 });
                 const legGeoR = new THREE.CapsuleGeometry(0.13, 0.08, 8, 16);
                 legGeoR.translate(0, -0.04, 0);
-                const legR = part(legGeoR, matBody, 0.28, -0.64, 0.05, {
+                const legR = part(legGeoR, matBody, 0.28, -0.7, 0.05, {
                     rot: [0.25, 0, -0.15],
                 });
                 // しっぽ：お尻に丸く
-                part(new THREE.SphereGeometry(0.11, 24, 24), matBody, 0, -0.55, -0.36);
+                part(new THREE.SphereGeometry(0.11, 24, 24), matBody, 0, -0.6, -0.37);
 
                 // 装備：ヘルメットは頭だけを包み、リムが首元（頭と胴の境目）から始まる。
                 // リングはその境目に密着させ「肩に乗るヘルメットの襟」に見せる
                 addGear(group, part, {
                     ringRadius: 0.36,
                     ringY: 0.1,
-                    // 頭頂を平らにした分だけ頭が低くなったため、ヘルメットが浮きすぎないよう追従
-                    helmetRadius: 0.52,
-                    helmetY: 0.4,
+                    // 頭より一回り余裕のあるバブルに。縁は肩のシルエットと交差して首元から始まって見える
+                    helmetRadius: 0.6,
+                    helmetY: 0.42,
                 });
                 applyOutlines();
 
