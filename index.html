@@ -2962,8 +2962,14 @@
                     bear.rotation.y = bearYaw + dragYaw;
                 }
 
+                // 回されている間（ドラッグ中 or 慣性で回っている間）は
+                // 熊は目を瞑り（mspnは固定顔のまま）、手足をバタバタさせる
+                const spun =
+                    dragging ||
+                    Math.abs(dragYawVel) + Math.abs(dragPitchVel) > 0.6;
+
                 // 瞬き・表情はキャラ側に委譲（熊: 3〜7秒間隔のまばたき / mspn: 固定顔）
-                character.updateFace(t, forceBlink);
+                character.updateFace(t, forceBlink || spun);
 
                 // 手足バタバタ：7〜15秒ごとに1.4〜2.2秒、なめらかに始まり収まる
                 if (t >= nextFlailAt) {
@@ -2972,11 +2978,12 @@
                     nextFlailAt = t + 7 + Math.random() * 8;
                 }
                 const fp = (t - flailStart) / flailDur;
-                const flail = forceFlail
-                    ? 1
-                    : fp >= 0 && fp <= 1
-                      ? Math.sin(Math.PI * fp)
-                      : 0;
+                const flail =
+                    forceFlail || spun
+                        ? 1
+                        : fp >= 0 && fp <= 1
+                          ? Math.sin(Math.PI * fp)
+                          : 0;
                 const flap = flail * Math.sin(t * 9.0) * 0.5; // 腕：左右同時に羽ばたき
                 const kick = flail * Math.sin(t * 8.0 + 1.0) * 0.45; // 脚：交互にバタ足
                 armL.rotation.z = 0.9 + flap;
