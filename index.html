@@ -1968,15 +1968,13 @@
                 // 頬→なで肩→腕→足先までひと続きの寸胴シルエットにする（服なし・全身同色）
                 // 彫刻は3工程：
                 //  1) 中腹を円筒に寄せて側面を垂直ライン（耳の端と同じ縦ライン）にする
-                //  2) 股（中央）を逆R（∩）のアーチに持ち上げる
-                //  3) 底の両脇（±legX）を下へふくらませ、胴の下部そのものを足にする
+                //  2) 底の深さを x で連続スケールし、足（±legX）は球の丸い底を
+                //     そのまま残し、股（中央）だけ浅くして U⌒U の底面ラインにする
                 const bodyGeo = new THREE.SphereGeometry(0.46, 48, 48);
-                const bodyBottom = -0.46 * 0.5; // ここより下をアーチ・足加工の対象に
-                const crotchHalfW = 0.26; // アーチの半幅（両足の間隔に対応）
-                const crotchLift = 0.44; // 持ち上げ量（0=無変化、1=bodyBottomまで平ら）
+                const bodyBottom = -0.46 * 0.5; // ここより下を底加工の対象に
                 const legX = 0.28; // 足の中心x
-                const legLobeAmp = 0.13; // 足のふくらみの深さ（足先が股下より下がる量）
-                const legLobeW = 0.18; // 足のふくらみの幅（広め＝もっちゃり）
+                const legW = 0.15; // 足の幅（ガウス半幅）
+                const crotchDepth = 0.42; // 股中央に残す深さの割合（足=1）
                 const barrelLo = -0.34; // 円筒化の下端
                 const barrelHi = 0.12; // 円筒化の上端
                 const barrelMix = 0.85; // 円筒への寄せ量（1=完全な円筒）
@@ -2000,21 +1998,16 @@
                         bodyPos.setZ(i, bz);
                     }
                     if (by < bodyBottom) {
-                        // 2) 股のアーチ：平頂の釣鐘（4乗）で持ち上げ、股下を
-                        // 尖った∩ではなく「U-U」の間のなだらかなRにする
-                        const t = Math.exp(-((bx / crotchHalfW) ** 4));
-                        // 3) 足のふくらみ：足位置を中心とした丸い山（ガウス）
-                        // × 底に近いほど強い重み。足先が丸いUの形になる
-                        const w = (bodyBottom - by) / (0.46 + bodyBottom);
-                        const lobe = Math.exp(
-                            -(((Math.abs(bx) - legX) / (legLobeW * 0.62)) ** 2),
+                        // 2) 底の深さスケール：足中心で1（球の丸い底＝丸い足先のまま）、
+                        // 股中央は crotchDepth まで浅く。ガウスで滑らかに繋ぐので
+                        // 折り目が出ず、足先の丸みは球の曲率がそのまま残る
+                        const foot = Math.exp(
+                            -(((Math.abs(bx) - legX) / legW) ** 2),
                         );
-                        bodyPos.setY(
-                            i,
-                            by +
-                                (bodyBottom - by) * crotchLift * t -
-                                legLobeAmp * lobe * w,
-                        );
+                        const s =
+                            crotchDepth +
+                            (1 - crotchDepth) * Math.min(1, foot);
+                        bodyPos.setY(i, bodyBottom + (by - bodyBottom) * s);
                     }
                 }
                 bodyGeo.computeVertexNormals();
