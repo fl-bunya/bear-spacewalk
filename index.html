@@ -1962,11 +1962,15 @@
 
                 // 胴：卵型（下すぼまりなし・裾広がり）のスフィア。頭に深く重ねて首のくびれを作らず、
                 // 頬→なで肩→腕→お尻へひと続きの寸胴シルエットにする（服なし・全身同色）
-                // 底面を彫る：股（中央）を逆R（∩）のアーチに持ち上げ、脚が付く両角は低いまま残す
+                // 底面を彫る：股（中央）を逆R（∩）のアーチに持ち上げ、
+                // 脚の付け根（±legX）に向かっては下へふくらませて、胴→脚がなだらかなRで繋がるようにする
                 const bodyGeo = new THREE.SphereGeometry(0.46, 48, 48);
                 const bodyBottom = -0.46 * 0.5; // ここより下をアーチ加工の対象に
                 const crotchHalfW = 0.3; // アーチの半幅（両脚の間隔に対応）
                 const crotchLift = 0.7; // 持ち上げ量（0=無変化、1=bodyBottomまで平ら）
+                const legX = 0.28; // 脚の中心x（脚メッシュの位置と揃える）
+                const legLobeAmp = 0.12; // 脚へ続くふくらみの深さ
+                const legLobeW = 0.13; // ふくらみの幅
                 const bodyPos = bodyGeo.attributes.position;
                 for (let i = 0; i < bodyPos.count; i++) {
                     const bx = bodyPos.getX(i);
@@ -1974,7 +1978,15 @@
                     if (by < bodyBottom) {
                         // 中央（x=0）ほど強く持ち上げる放物線の重み
                         const t = Math.max(0, 1 - (bx / crotchHalfW) ** 2);
-                        bodyPos.setY(i, by + (bodyBottom - by) * crotchLift * t);
+                        // 底に近いほど強く効く重み（0→1）と、脚位置を中心とした釣鐘の重み
+                        const w = (bodyBottom - by) / (0.46 + bodyBottom);
+                        const lobe = Math.exp(-(((Math.abs(bx) - legX) / legLobeW) ** 2));
+                        bodyPos.setY(
+                            i,
+                            by +
+                                (bodyBottom - by) * crotchLift * t -
+                                legLobeAmp * lobe * w,
+                        );
                     }
                 }
                 bodyGeo.computeVertexNormals();
