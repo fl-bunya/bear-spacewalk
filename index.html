@@ -1976,7 +1976,7 @@
                 const crotchLift = 0.44; // 持ち上げ量（0=無変化、1=bodyBottomまで平ら）
                 const legX = 0.28; // 足の中心x
                 const legLobeAmp = 0.13; // 足のふくらみの深さ（足先が股下より下がる量）
-                const legLobeW = 0.3; // 足のふくらみの幅（広め＝もっちゃり）
+                const legLobeW = 0.18; // 足のふくらみの幅（広め＝もっちゃり）
                 const barrelLo = -0.34; // 円筒化の下端
                 const barrelHi = 0.12; // 円筒化の上端
                 const barrelMix = 0.85; // 円筒への寄せ量（1=完全な円筒）
@@ -2003,11 +2003,11 @@
                         // 2) 股のアーチ：平頂の釣鐘（4乗）で持ち上げ、股下を
                         // 尖った∩ではなく「U-U」の間のなだらかなRにする
                         const t = Math.exp(-((bx / crotchHalfW) ** 4));
-                        // 3) 足のふくらみ：足位置を中心とした平頂の釣鐘（4乗＝頂が平らで
-                        // 裾が急）× 底に近いほど強い重み。尖らずもっちゃり丸い足先になる
+                        // 3) 足のふくらみ：足位置を中心とした丸い山（ガウス）
+                        // × 底に近いほど強い重み。足先が丸いUの形になる
                         const w = (bodyBottom - by) / (0.46 + bodyBottom);
                         const lobe = Math.exp(
-                            -(((Math.abs(bx) - legX) / legLobeW) ** 4),
+                            -(((Math.abs(bx) - legX) / (legLobeW * 0.62)) ** 2),
                         );
                         bodyPos.setY(
                             i,
