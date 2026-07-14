@@ -2156,6 +2156,55 @@
             const bear = character.group; // 配置・回転コード（既存）はこの名前で参照
             const { armL, armR, legL, legR } = character;
 
+            // ====== キャラのドラッグ回転：掴んで回せる。離すとゆっくり元の揺蕩いへ ======
+            let dragYaw = 0;
+            let dragPitch = 0;
+            let dragging = false;
+            const dragRay = new THREE.Raycaster();
+            const dragNDC = new THREE.Vector2();
+            function pickCharacter(e) {
+                dragNDC.set(
+                    (e.clientX / innerWidth) * 2 - 1,
+                    -(e.clientY / innerHeight) * 2 + 1,
+                );
+                dragRay.setFromCamera(dragNDC, camera);
+                return dragRay.intersectObject(bear, true).length > 0;
+            }
+            renderer.domElement.addEventListener("pointerdown", (e) => {
+                if (!pickCharacter(e)) return;
+                dragging = true;
+                renderer.domElement.setPointerCapture(e.pointerId);
+                renderer.domElement.style.cursor = "grabbing";
+            });
+            renderer.domElement.addEventListener("pointermove", (e) => {
+                if (dragging) {
+                    dragYaw += e.movementX * 0.01;
+                    dragPitch = THREE.MathUtils.clamp(
+                        dragPitch + e.movementY * 0.01,
+                        -0.8,
+                        0.8,
+                    );
+                } else {
+                    // ホバーで「掴める」ことを示す
+                    renderer.domElement.style.cursor = pickCharacter(e)
+                        ? "grab"
+                        : "";
+                }
+            });
+            for (const ev of ["pointerup", "pointercancel"]) {
+                renderer.domElement.addEventListener(ev, () => {
+                    dragging = false;
+                    renderer.domElement.style.cursor = "";
+                });
+            }
+            // 離した後：指数減衰で元の姿勢へ（時定数0.8s ≒ 2.5秒で実質ゼロ）
+            function updateDragDecay(dt) {
+                if (dragging) return;
+                const k = Math.exp(-dt / 0.8);
+                dragYaw *= k;
+                dragPitch *= k;
+            }
+
             // ====== カメラリグ：地球を見回す遊覧カメラ + カメラに同伴する黄色い熊 ======
             // 熊はカメラの子にして常に画面内を漂わせる。カメラがどこを向いても一緒に遊泳する
             scene.add(camera);
@@ -2724,6 +2773,7 @@
             const forceMilky = location.search.indexOf("milky") !== -1; // 確認用：天の川を常時表示
             const forceZodiac = location.search.indexOf("zodiac") !== -1; // 確認用：昼の光の帯を常時表示
             const forceDay = location.search.indexOf("forceday") !== -1; // 確認用：昼構図を強制（太陽をカメラ側へ）
+            let bearYaw = -0.6; // 揺蕩いのヨー角（スタート時は左向き）
             let flailStart = -10;
             let flailDur = 1;
             let nextFlailAt = 6;
@@ -2869,13 +2919,17 @@
                         Math.sin(t * 0.23 + 1.2) * 0.025,
                     CONFIG.bearOffset[2] + Math.sin(t * 0.17 + 2.4) * 0.03,
                 );
+                updateDragDecay(dt);
                 bear.rotation.z = Math.sin(t * 0.12) * 0.35 - 0.15;
-                bear.rotation.x = Math.sin(t * 0.09 + 0.7) * 0.25;
-                if (t < 0.1)
-                    bear.rotation.y = -0.6; // スタート時は左に向く
-                else bear.rotation.y += dt * 0.08;
-
-                if (isPreview) bear.rotation.set(0, 0, 0); // 撮影確認用に正面固定
+                if (t >= 0.1) bearYaw += dt * 0.08; // スタート時は左向き(-0.6)から回り始める
+                if (isPreview) {
+                    // 撮影確認用に正面固定（ドラッグ分だけ効かせて検証可能に）
+                    bear.rotation.set(dragPitch, dragYaw, 0);
+                } else {
+                    bear.rotation.x =
+                        Math.sin(t * 0.09 + 0.7) * 0.25 + dragPitch;
+                    bear.rotation.y = bearYaw + dragYaw;
+                }
 
                 // 瞬き・表情はキャラ側に委譲（熊: 3〜7秒間隔のまばたき / mspn: 固定顔）
                 character.updateFace(t, forceBlink);
