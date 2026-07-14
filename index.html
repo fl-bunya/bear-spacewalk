@@ -2156,9 +2156,13 @@
             const bear = character.group; // 配置・回転コード（既存）はこの名前で参照
             const { armL, armR, legL, legR } = character;
 
-            // ====== キャラのドラッグ回転：掴んで回せる。離すとゆっくり元の揺蕩いへ ======
+            // ====== キャラのドラッグ回転：掴んで回せる。フリックすると慣性で
+            // クルクル回り、摩擦で減衰しながらゆっくり元の揺蕩いへ戻る ======
             let dragYaw = 0;
             let dragPitch = 0;
+            let dragYawVel = 0; // 慣性用の角速度（rad/s）
+            let dragPitchVel = 0;
+            let lastMoveTs = 0;
             let dragging = false;
             const dragRay = new THREE.Raycaster();
             const dragNDC = new THREE.Vector2();
@@ -2173,16 +2177,37 @@
             renderer.domElement.addEventListener("pointerdown", (e) => {
                 if (!pickCharacter(e)) return;
                 dragging = true;
+                dragYawVel = 0;
+                dragPitchVel = 0;
+                lastMoveTs = e.timeStamp;
                 renderer.domElement.setPointerCapture(e.pointerId);
                 renderer.domElement.style.cursor = "grabbing";
             });
             renderer.domElement.addEventListener("pointermove", (e) => {
                 if (dragging) {
-                    dragYaw += e.movementX * 0.01;
+                    const dy = e.movementX * 0.01;
+                    const dp = e.movementY * 0.01;
+                    dragYaw += dy;
                     dragPitch = THREE.MathUtils.clamp(
-                        dragPitch + e.movementY * 0.01,
+                        dragPitch + dp,
                         -0.8,
                         0.8,
+                    );
+                    // 直近の指の速さを平滑化して保持（離した瞬間の慣性になる）
+                    const dtm = Math.min(
+                        0.1,
+                        Math.max(0.004, (e.timeStamp - lastMoveTs) / 1000),
+                    );
+                    lastMoveTs = e.timeStamp;
+                    dragYawVel = THREE.MathUtils.lerp(
+                        dragYawVel,
+                        dy / dtm,
+                        0.35,
+                    );
+                    dragPitchVel = THREE.MathUtils.lerp(
+                        dragPitchVel,
+                        dp / dtm,
+                        0.35,
                     );
                 } else {
                     // ホバーで「掴める」ことを示す
@@ -2197,12 +2222,22 @@
                     renderer.domElement.style.cursor = "";
                 });
             }
-            // 離した後：指数減衰で元の姿勢へ（時定数0.8s ≒ 2.5秒で実質ゼロ）
+            // 離した後：慣性で回り続け（摩擦で角速度が減衰）、姿勢も緩やかに元へ戻る
             function updateDragDecay(dt) {
                 if (dragging) return;
-                const k = Math.exp(-dt / 0.8);
-                dragYaw *= k;
-                dragPitch *= k;
+                dragYaw += dragYawVel * dt;
+                dragPitch += dragPitchVel * dt;
+                if (Math.abs(dragPitch) >= 0.8) {
+                    // ピッチは上限で止める（勢い余って裏返らないように）
+                    dragPitch = THREE.MathUtils.clamp(dragPitch, -0.8, 0.8);
+                    dragPitchVel = 0;
+                }
+                const kv = Math.exp(-dt / 0.7); // 摩擦：角速度の減衰
+                dragYawVel *= kv;
+                dragPitchVel *= kv;
+                const kp = Math.exp(-dt / 1.4); // 姿勢の復帰はより緩やかに
+                dragYaw *= kp;
+                dragPitch *= kp;
             }
 
             // ====== カメラリグ：地球を見回す遊覧カメラ + カメラに同伴する黄色い熊 ======
