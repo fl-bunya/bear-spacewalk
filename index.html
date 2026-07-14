@@ -2188,26 +2188,23 @@
                     const dy = e.movementX * 0.01;
                     const dp = e.movementY * 0.01;
                     dragYaw += dy;
-                    dragPitch = THREE.MathUtils.clamp(
-                        dragPitch + dp,
-                        -0.8,
-                        0.8,
-                    );
+                    dragPitch += dp; // 縦も一回転可（クランプなし）
                     // 直近の指の速さを平滑化して保持（離した瞬間の慣性になる）
                     const dtm = Math.min(
                         0.1,
                         Math.max(0.004, (e.timeStamp - lastMoveTs) / 1000),
                     );
                     lastMoveTs = e.timeStamp;
-                    dragYawVel = THREE.MathUtils.lerp(
-                        dragYawVel,
-                        dy / dtm,
-                        0.35,
+                    // 角速度は±6rad/s（約1回転/秒）に制限：暴走防止
+                    dragYawVel = THREE.MathUtils.clamp(
+                        THREE.MathUtils.lerp(dragYawVel, dy / dtm, 0.35),
+                        -6,
+                        6,
                     );
-                    dragPitchVel = THREE.MathUtils.lerp(
-                        dragPitchVel,
-                        dp / dtm,
-                        0.35,
+                    dragPitchVel = THREE.MathUtils.clamp(
+                        THREE.MathUtils.lerp(dragPitchVel, dp / dtm, 0.35),
+                        -6,
+                        6,
                     );
                 } else {
                     // ホバーで「掴める」ことを示す
@@ -2223,19 +2220,18 @@
                 });
             }
             // 離した後：慣性で回り続け（摩擦で角速度が減衰）、姿勢も緩やかに元へ戻る
+            // 角度は±πに折り返してから減衰＝何回転していても最短経路で元の向きへ
+            const wrapAngle = (a) =>
+                THREE.MathUtils.euclideanModulo(a + Math.PI, Math.PI * 2) -
+                Math.PI;
             function updateDragDecay(dt) {
                 if (dragging) return;
-                dragYaw += dragYawVel * dt;
-                dragPitch += dragPitchVel * dt;
-                if (Math.abs(dragPitch) >= 0.8) {
-                    // ピッチは上限で止める（勢い余って裏返らないように）
-                    dragPitch = THREE.MathUtils.clamp(dragPitch, -0.8, 0.8);
-                    dragPitchVel = 0;
-                }
-                const kv = Math.exp(-dt / 0.7); // 摩擦：角速度の減衰
+                dragYaw = wrapAngle(dragYaw + dragYawVel * dt);
+                dragPitch = wrapAngle(dragPitch + dragPitchVel * dt);
+                const kv = Math.exp(-dt / 1.5); // 摩擦：角速度の減衰
                 dragYawVel *= kv;
                 dragPitchVel *= kv;
-                const kp = Math.exp(-dt / 1.4); // 姿勢の復帰はより緩やかに
+                const kp = Math.exp(-dt / 3.0); // 姿勢の復帰はさらに緩やかに
                 dragYaw *= kp;
                 dragPitch *= kp;
             }
