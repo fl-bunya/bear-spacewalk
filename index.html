@@ -1960,22 +1960,51 @@
                     map: makeMspnFaceTexture(),
                 });
 
-                // 胴：卵型（下すぼまりなし・裾広がり）のスフィア。頭に深く重ねて首のくびれを作らず、
-                // 頬→なで肩→腕→お尻へひと続きの寸胴シルエットにする（服なし・全身同色）
-                // 底面を彫る：股（中央）を逆R（∩）のアーチに持ち上げ、裾は股下ラインで終える。
-                // 股下から下は脚メッシュ（胴と面一の縦長パーツ）が担い、股関節でジタバタできる
+                // 胴：足まで一体のスフィア彫刻。頭に深く重ねて首のくびれを作らず、
+                // 頬→なで肩→腕→足先までひと続きの寸胴シルエットにする（服なし・全身同色）
+                // 彫刻は3工程：
+                //  1) 中腹を円筒に寄せて側面を垂直ライン（耳の端と同じ縦ライン）にする
+                //  2) 股（中央）を逆R（∩）のアーチに持ち上げる
+                //  3) 底の両脇（±legX）を下へふくらませ、胴の下部そのものを足にする
                 const bodyGeo = new THREE.SphereGeometry(0.46, 48, 48);
-                const bodyBottom = -0.46 * 0.5; // ここより下をアーチ加工の対象に
-                const crotchHalfW = 0.3; // アーチの半幅（両脚の間隔に対応）
-                const crotchLift = 0.7; // 持ち上げ量（0=無変化、1=bodyBottomまで平ら）
+                const bodyBottom = -0.46 * 0.5; // ここより下をアーチ・足加工の対象に
+                const crotchHalfW = 0.26; // アーチの半幅（両足の間隔に対応）
+                const crotchLift = 0.44; // 持ち上げ量（0=無変化、1=bodyBottomまで平ら）
+                const legX = 0.28; // 足の中心x
+                const legLobeAmp = 0.16; // 足のふくらみの深さ（足先が股下より下がる量）
+                const legLobeW = 0.14; // 足のふくらみの幅
+                const barrelLo = -0.34; // 円筒化の下端
+                const barrelHi = 0.12; // 円筒化の上端
+                const barrelMix = 0.85; // 円筒への寄せ量（1=完全な円筒）
                 const bodyPos = bodyGeo.attributes.position;
                 for (let i = 0; i < bodyPos.count; i++) {
-                    const bx = bodyPos.getX(i);
+                    let bx = bodyPos.getX(i);
+                    let bz = bodyPos.getZ(i);
                     const by = bodyPos.getY(i);
+                    if (by > barrelLo && by < barrelHi) {
+                        // 1) 円筒化：中腹の半径を最大半径0.46へ寄せる（両端はサインで滑らかに戻す）
+                        const u = (by - barrelLo) / (barrelHi - barrelLo);
+                        const ring = Math.sqrt(0.46 * 0.46 - by * by);
+                        const f =
+                            1 +
+                            (0.46 / ring - 1) * barrelMix * Math.sin(Math.PI * u);
+                        bx *= f;
+                        bz *= f;
+                        bodyPos.setX(i, bx);
+                        bodyPos.setZ(i, bz);
+                    }
                     if (by < bodyBottom) {
-                        // 中央（x=0）ほど強く持ち上げる放物線の重み
+                        // 2) 股のアーチ：中央（x=0）ほど強く持ち上げる放物線の重み
                         const t = Math.max(0, 1 - (bx / crotchHalfW) ** 2);
-                        bodyPos.setY(i, by + (bodyBottom - by) * crotchLift * t);
+                        // 3) 足のふくらみ：足位置を中心とした釣鐘 × 底に近いほど強い重み
+                        const w = (bodyBottom - by) / (0.46 + bodyBottom);
+                        const lobe = Math.exp(-(((Math.abs(bx) - legX) / legLobeW) ** 2));
+                        bodyPos.setY(
+                            i,
+                            by +
+                                (bodyBottom - by) * crotchLift * t -
+                                legLobeAmp * lobe * w,
+                        );
                     }
                 }
                 bodyGeo.computeVertexNormals();
@@ -2015,21 +2044,38 @@
                 const armR = part(armGeoR, matBody, 0.42, -0.16, 0.05, {
                     rot: [0, 0, -0.7],
                 });
-                // 脚：単体の足パーツは置かず、胴の下部（股下から下）そのものを脚にする。
-                // 胴の裾と面一の縦長楕円（腿〜足先）を深く重ね、上端の股関節を原点にして
-                // ループの rotation.x（バタ足）で股下から丸ごとスイングさせる
-                const legGeoL = new THREE.SphereGeometry(0.12, 24, 24);
-                legGeoL.scale(1, 2.2, 1);
-                legGeoL.translate(0, -0.26, 0); // 股関節（上端）を回転の原点に
-                const legL = part(legGeoL, matBody, -0.22, -0.61, 0.02, {
-                    rot: [0.25, 0, 0.15],
-                });
-                const legGeoR = new THREE.SphereGeometry(0.12, 24, 24);
-                legGeoR.scale(1, 2.2, 1);
-                legGeoR.translate(0, -0.26, 0); // 股関節（上端）を回転の原点に
-                const legR = part(legGeoR, matBody, 0.22, -0.61, 0.02, {
-                    rot: [0.25, 0, -0.15],
-                });
+                // 足：単体メッシュは持たない（胴の底ローブが足）。ループが rotation.x を
+                // 代入してくる契約だけ満たすダミーピボットを返し、その角度を updateFace で
+                // 読み取って胴ジオメトリの股下から下を頂点ベンドさせる（完全一体のジタバタ）
+                const legL = new THREE.Object3D();
+                legL.rotation.set(0.25, 0, 0.15); // ループの基準姿勢（0.25±kick）に合わせる
+                const legR = new THREE.Object3D();
+                legR.rotation.set(0.25, 0, -0.15);
+                group.add(legL, legR);
+                // ベンド対象の頂点を前計算：股下ライン（bendStart）より下を、
+                // 深さの重み（滑らかに0→1）と左右のブレンド（中央は動かさない）付きで持つ
+                const bendStart = -0.29; // ここ（股下）から下が足として曲がる
+                const bendEnd = -0.42; // ここより下は重み1（足先）
+                const bendVerts = [];
+                for (let i = 0; i < bodyPos.count; i++) {
+                    const by = bodyPos.getY(i);
+                    if (by >= bendStart) continue;
+                    let w =
+                        Math.min(1, (bendStart - by) / (bendStart - bendEnd));
+                    w = w * w * (3 - 2 * w); // smoothstep：付け根に折り目を作らない
+                    const sb = Math.max(
+                        -1,
+                        Math.min(1, bodyPos.getX(i) / 0.2),
+                    ); // 左右ブレンド（股の中央ほど0。広めに取って股の面を裂かない）
+                    bendVerts.push({
+                        i,
+                        w,
+                        sb,
+                        oy: by,
+                        oz: bodyPos.getZ(i),
+                    });
+                }
+                let legsBent = false; // 直前フレームで曲げたか（レスト時の無駄な再計算を避ける）
                 // しっぽ：お尻に丸く（胴の伸長に合わせて下へ追従）
                 part(new THREE.SphereGeometry(0.11, 24, 24), matBody, 0, -0.78, -0.35);
 
@@ -2044,13 +2090,42 @@
                 });
                 applyOutlines();
 
+                // 毎フレーム呼ばれるフックで足のベンドを適用（まばたきなし：原画の表情は固定）
+                // ループが legL/legR.rotation.x に入れる 0.25±kick から基準0.25を引き、
+                // 増幅して股関節の曲げ角にする（一体メッシュなので継ぎ目は出ない）
+                const kickGain = 2.0; // ベンドのレバーが短い分、見た目のバタ足量を増幅
+                const bendPivotY = bendStart; // 股下ラインを回転軸に
+                function updateFace() {
+                    const aL = (legL.rotation.x - 0.25) * kickGain;
+                    const aR = (legR.rotation.x - 0.25) * kickGain;
+                    const active =
+                        Math.abs(aL) > 1e-3 || Math.abs(aR) > 1e-3;
+                    if (!active && !legsBent) return; // レスト継続中は何もしない
+                    for (const v of bendVerts) {
+                        // 左右の曲げ角をブレンドし（中央sb≈0は動かず股が裂けない）、
+                        // 深さの重みwで付け根から足先へ滑らかに曲げを効かせる
+                        const th =
+                            (aL * Math.max(0, -v.sb) +
+                                aR * Math.max(0, v.sb)) *
+                            v.w;
+                        const dy = v.oy - bendPivotY;
+                        const c = Math.cos(th);
+                        const s = Math.sin(th);
+                        bodyPos.setY(v.i, bendPivotY + dy * c - v.oz * s);
+                        bodyPos.setZ(v.i, dy * s + v.oz * c);
+                    }
+                    bodyPos.needsUpdate = true;
+                    bodyGeo.computeVertexNormals();
+                    legsBent = active;
+                }
+
                 return {
                     group,
                     armL,
                     armR,
                     legL,
                     legR,
-                    updateFace() {}, // まばたきなし：原画の表情を固定
+                    updateFace,
                 };
             }
 
