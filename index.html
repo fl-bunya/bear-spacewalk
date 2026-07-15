@@ -1967,33 +1967,24 @@
                 // 胴：頭より細く薄い寸胴スフィア彫刻。頭に深く重ねて首のくびれを作らず、
                 // 頬→なで肩→腕までひと続きのシルエットにする（服なし・全身同色）。
                 // 彫刻は2工程：
-                //  1) 中腹を円筒に寄せて側面を垂直ライン（耳の端と同じ縦ライン）にする
+                //  1) お腹（中腹やや下）をふくらませ、クッションのような柔らかい丸みにする
                 //  2) 底を一様に浅くフラット化し、緩いRの底面にする（足は別パーツで復活）
                 const bodyGeo = new THREE.SphereGeometry(0.46, 48, 48);
                 const bodyBottom = -0.46 * 0.5; // ここより下を底加工の対象に
                 const bottomFlat = 0.5; // 底の深さスケール（一様。足パーツが下から覗く）
-                const barrelLo = -0.34; // 円筒化の下端
-                const barrelHi = 0.12; // 円筒化の上端
-                const barrelMix = 0.85; // 円筒への寄せ量（1=完全な円筒）
+                const bellyY = -0.12; // お腹のふくらみ中心の高さ
+                const bellyW = 0.26; // ふくらみの縦幅（ガウス半幅）
+                const bellyAmp = 0.14; // ふくらみ量（半径比）
                 const bodyPos = bodyGeo.attributes.position;
                 for (let i = 0; i < bodyPos.count; i++) {
-                    let bx = bodyPos.getX(i);
-                    let bz = bodyPos.getZ(i);
+                    const bx = bodyPos.getX(i);
+                    const bz = bodyPos.getZ(i);
                     const by = bodyPos.getY(i);
-                    if (by > barrelLo && by < barrelHi) {
-                        // 1) 円筒化：中腹の半径を最大半径0.46へ寄せる（両端はサインで滑らかに戻す）
-                        const u = (by - barrelLo) / (barrelHi - barrelLo);
-                        const ring = Math.sqrt(0.46 * 0.46 - by * by);
-                        const f =
-                            1 +
-                            (0.46 / ring - 1) *
-                                barrelMix *
-                                Math.sin(Math.PI * u);
-                        bx *= f;
-                        bz *= f;
-                        bodyPos.setX(i, bx);
-                        bodyPos.setZ(i, bz);
-                    }
+                    // 1) お腹のふくらみ：中腹やや下を中心に半径を膨らませる
+                    const f =
+                        1 + bellyAmp * Math.exp(-(((by - bellyY) / bellyW) ** 2));
+                    bodyPos.setX(i, bx * f);
+                    bodyPos.setZ(i, bz * f);
                     if (by < bodyBottom) {
                         // 2) 底の深さを一様にスケールして浅いRの底にする（中央も足元も同じ）
                         bodyPos.setY(
