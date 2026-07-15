@@ -2059,13 +2059,15 @@
                 // 軸に回せるようジオメトリを下へオフセットし、熊の脚と同じ契約
                 // （ループが legL/legR.rotation.x = 0.25±kick を代入）でジタバタさせる
                 const legGeoL = new THREE.SphereGeometry(0.14, 24, 24);
-                legGeoL.translate(0, -0.06, 0);
-                const legL = part(legGeoL, matBody, -0.24, -0.66, 0.08, {
+                legGeoL.scale(1, 1.25, 1); // 縦に少し長い丸足
+                legGeoL.translate(0, -0.08, 0);
+                const legL = part(legGeoL, matBody, -0.24, -0.7, 0.08, {
                     rot: [0.25, 0, 0.15],
                 });
                 const legGeoR = new THREE.SphereGeometry(0.14, 24, 24);
-                legGeoR.translate(0, -0.06, 0);
-                const legR = part(legGeoR, matBody, 0.24, -0.66, 0.08, {
+                legGeoR.scale(1, 1.25, 1);
+                legGeoR.translate(0, -0.08, 0);
+                const legR = part(legGeoR, matBody, 0.24, -0.7, 0.08, {
                     rot: [0.25, 0, -0.15],
                 });
                 // しっぽ：お尻に丸く（短くなった胴の後方下寄りに追従）
