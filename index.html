@@ -1994,10 +1994,10 @@
                     }
                 }
                 bodyGeo.computeVertexNormals();
-                part(bodyGeo, matBody, 0, -0.26, 0, {
-                    // 頭より細く・特に薄く（z）。縦は短めにして寸胴だが約2.2等身は
-                    // 足パーツの分で確保するプロポーションにする
-                    scale: [0.86, 1.6, 0.78],
+                part(bodyGeo, matBody, 0, -0.24, 0, {
+                    // 頭より一回り小さく・特に薄く（z）。縦は短めにして寸胴だが
+                    // 約2.2等身は足パーツの分で確保するプロポーションにする
+                    scale: [0.78, 1.45, 0.7],
                 });
                 // 頭（顔テクスチャの正面が +z を向くよう -90° 回転。前面を広めに見せてトゥーン陰影で顔が暗く潰れないように）
                 // 縦に少し長い楕円にして、頬の輪郭が（ ）のような緩いRの縦アークになるように
@@ -2038,12 +2038,12 @@
                 // 腕：なで肩の斜面からちょこんと出る短いカプセル（付け根を軸に回転できるようオフセット）
                 const armGeoL = new THREE.CapsuleGeometry(0.11, 0.14, 8, 16);
                 armGeoL.translate(0, 0.07, 0);
-                const armL = part(armGeoL, matBody, -0.4, -0.12, 0.05, {
+                const armL = part(armGeoL, matBody, -0.36, -0.12, 0.05, {
                     rot: [0, 0, 0.9],
                 });
                 const armGeoR = new THREE.CapsuleGeometry(0.11, 0.14, 8, 16);
                 armGeoR.translate(0, 0.07, 0);
-                const armR = part(armGeoR, matBody, 0.42, -0.16, 0.05, {
+                const armR = part(armGeoR, matBody, 0.38, -0.16, 0.05, {
                     rot: [0, 0, -0.7],
                 });
                 // 足：丸い単体パーツ（球）を胴の底角に配置。股関節ピボット（付け根）を
@@ -2052,22 +2052,22 @@
                 const legGeoL = new THREE.SphereGeometry(0.14, 24, 24);
                 legGeoL.scale(1, 1.25, 1); // 縦に少し長い丸足
                 legGeoL.translate(0, -0.08, 0);
-                const legL = part(legGeoL, matBody, -0.24, -0.7, 0.08, {
+                const legL = part(legGeoL, matBody, -0.27, -0.63, 0.08, {
                     rot: [0.25, 0, 0.15],
                 });
                 const legGeoR = new THREE.SphereGeometry(0.14, 24, 24);
                 legGeoR.scale(1, 1.25, 1);
                 legGeoR.translate(0, -0.08, 0);
-                const legR = part(legGeoR, matBody, 0.24, -0.7, 0.08, {
+                const legR = part(legGeoR, matBody, 0.27, -0.63, 0.08, {
                     rot: [0.25, 0, -0.15],
                 });
-                // しっぽ：お尻に丸く（短くなった胴の後方下寄りに追従）
+                // しっぽ：お尻に丸く（縮めた胴の後方下寄りに追従）
                 part(
                     new THREE.SphereGeometry(0.11, 24, 24),
                     matBody,
                     0,
-                    -0.62,
-                    -0.32,
+                    -0.56,
+                    -0.28,
                 );
 
                 // 装備：ヘルメットは頭だけを包み、リムが首元（頭と胴の境目）から始まる。
