@@ -1940,22 +1940,18 @@
                 g.quadraticCurveTo(584, 209, 572, 200);
                 g.stroke();
                 if (mouthOpen) {
-                    // 口を開けた笑顔：上唇はω型、口内はピンク、下に舌
+                    // 口を開けた笑顔：上唇＝ゆるいω、下唇＝丸い弧の黒線で囲み、中はピンク
                     g.beginPath();
-                    g.moveTo(486, 246);
-                    g.quadraticCurveTo(499, 258, 512, 246); // 左の山
-                    g.quadraticCurveTo(525, 258, 538, 246); // 右の山
-                    g.quadraticCurveTo(540, 276, 512, 282); // 右下へ
-                    g.quadraticCurveTo(484, 276, 486, 246); // 左下から戻る
+                    g.moveTo(488, 249); // 左口角
+                    g.quadraticCurveTo(500, 258, 512, 250); // 上唇：左の山
+                    g.quadraticCurveTo(524, 258, 536, 249); // 上唇：右の山
+                    g.quadraticCurveTo(526, 278, 512, 280); // 下唇：右下の弧
+                    g.quadraticCurveTo(498, 278, 488, 249); // 下唇：左下から戻る
                     g.closePath();
                     g.fillStyle = "#e8728f"; // 口内のピンク
                     g.fill();
-                    // 舌：口内の下側にひとまわり明るいピンクの丸み
-                    g.beginPath();
-                    g.ellipse(512, 274, 15, 10, 0, 0, Math.PI * 2);
-                    g.fillStyle = "#f4a6bb";
-                    g.fill();
-                    g.stroke(); // 口の輪郭線
+                    g.lineWidth = 8; // 上下唇の黒線
+                    g.stroke();
                 } else {
                     // 口：小さな∧
                     g.beginPath();
