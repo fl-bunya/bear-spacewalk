@@ -1916,7 +1916,8 @@
 
             // ====== mspn（materials/IMG_9841.jpg 準拠：ずんぐり・手足短い・服なし） ======
             // 顔：下がり気味の短い線の目＋小さな∧の口。鼻なし・まばたきなし（原画の表情を固定）
-            function makeMspnFaceTexture() {
+            // mspnの顔テクスチャ。mouthOpen=true でバタバタ時の「口を開けた嬉しい顔」に
+            function makeMspnFaceTexture(mouthOpen) {
                 const cv = document.createElement("canvas");
                 cv.width = 1024;
                 cv.height = 512; // 球のequirectangular展開。中央(512)が顔の正面
@@ -1925,6 +1926,7 @@
                 g.fillRect(0, 0, 1024, 512);
                 g.strokeStyle = "#332b22";
                 g.lineCap = "round";
+                g.lineJoin = "round";
                 g.lineWidth = 9;
                 // 目：目尻（外側）が下がる短いタレ目。原画は約45〜50°の急な傾きの
                 // 手描きストロークなので、ごく浅いカーブで再現
@@ -1937,15 +1939,34 @@
                 g.moveTo(590, 220);
                 g.quadraticCurveTo(584, 209, 572, 200);
                 g.stroke();
-                // 口：小さな∧
-                g.beginPath();
-                g.moveTo(512, 250);
-                g.lineTo(499, 262);
-                g.stroke();
-                g.beginPath();
-                g.moveTo(512, 250);
-                g.lineTo(525, 262);
-                g.stroke();
+                if (mouthOpen) {
+                    // 口を開けた笑顔：上唇はω型、口内はピンク、下に舌
+                    g.beginPath();
+                    g.moveTo(486, 246);
+                    g.quadraticCurveTo(499, 258, 512, 246); // 左の山
+                    g.quadraticCurveTo(525, 258, 538, 246); // 右の山
+                    g.quadraticCurveTo(540, 276, 512, 282); // 右下へ
+                    g.quadraticCurveTo(484, 276, 486, 246); // 左下から戻る
+                    g.closePath();
+                    g.fillStyle = "#e8728f"; // 口内のピンク
+                    g.fill();
+                    // 舌：口内の下側にひとまわり明るいピンクの丸み
+                    g.beginPath();
+                    g.ellipse(512, 274, 15, 10, 0, 0, Math.PI * 2);
+                    g.fillStyle = "#f4a6bb";
+                    g.fill();
+                    g.stroke(); // 口の輪郭線
+                } else {
+                    // 口：小さな∧
+                    g.beginPath();
+                    g.moveTo(512, 250);
+                    g.lineTo(499, 262);
+                    g.stroke();
+                    g.beginPath();
+                    g.moveTo(512, 250);
+                    g.lineTo(525, 262);
+                    g.stroke();
+                }
                 const tex = new THREE.CanvasTexture(cv);
                 tex.encoding = THREE.sRGBEncoding;
                 tex.anisotropy = 4;
@@ -1958,10 +1979,12 @@
                     color: CONFIG.bearColor,
                     gradientMap,
                 });
+                const faceClosed = makeMspnFaceTexture(false);
+                const faceOpen = makeMspnFaceTexture(true); // バタバタ時の開口顔
                 const matFace = new THREE.MeshToonMaterial({
                     color: CONFIG.bearColor,
                     gradientMap,
-                    map: makeMspnFaceTexture(),
+                    map: faceClosed,
                 });
 
                 // 胴：頭より細く薄い寸胴スフィア彫刻。頭に深く重ねて首のくびれを作らず、
@@ -2082,8 +2105,13 @@
                 });
                 applyOutlines();
 
-                // mspnは表情固定（まばたきなし）。足は実パーツの回転で動くのでフックは不要
-                function updateFace() {}
+                // mspnはまばたきなし。バタバタ中(mouthOpen)だけ口を開けた顔に切り替える
+                let mouthIsOpen = false;
+                function updateFace(t, forceBlink, mouthOpen) {
+                    if (mouthOpen === mouthIsOpen) return;
+                    mouthIsOpen = mouthOpen;
+                    matFace.map = mouthOpen ? faceOpen : faceClosed;
+                }
 
                 return {
                     group,
@@ -2912,9 +2940,6 @@
                     dragging ||
                     Math.abs(dragYawVel) + Math.abs(dragPitchVel) > 0.6;
 
-                // 瞬き・表情はキャラ側に委譲（熊: 3〜7秒間隔のまばたき / mspn: 固定顔）
-                character.updateFace(t, forceBlink);
-
                 // 手足バタバタ：7〜15秒ごとに1.4〜2.2秒、なめらかに始まり収まる
                 if (t >= nextFlailAt) {
                     flailStart = t;
@@ -2928,6 +2953,11 @@
                         : fp >= 0 && fp <= 1
                           ? Math.sin(Math.PI * fp)
                           : 0;
+
+                // 瞬き・表情はキャラ側に委譲（熊: 3〜7秒間隔のまばたき /
+                // mspn: バタバタ中は口を開けた顔にする）
+                character.updateFace(t, forceBlink, flail > 0.2);
+
                 const flap = flail * Math.sin(t * 9.0) * 0.5; // 腕：左右同時に羽ばたき
                 const kick = flail * Math.sin(t * 8.0 + 1.0) * 0.45; // 脚：交互にバタ足
                 armL.rotation.z = 0.9 + flap;
