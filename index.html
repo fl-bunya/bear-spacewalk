@@ -1949,7 +1949,7 @@
                     g.quadraticCurveTo(530, 274, 512, 282); // 右へ回り込んで底へ
                     g.quadraticCurveTo(494, 274, 500, 260); // 左へ戻る
                     g.closePath();
-                    g.fillStyle = "#fc9b97"; // 口内のピンク
+                    g.fillStyle = "#ffbdb8"; // 口内のピンク（赤すぎないよう薄めに）
                     g.fill();
                     // 2) 上唇＝人(∧)。閉じ口と同じ形
                     g.beginPath();
@@ -1981,7 +1981,7 @@
 
             function buildMspn() {
                 const { group, part, applyOutlines } = charBase();
-                const mspnColor = 0xfeff9a; // mspn専用の淡い黄色（熊とは別色）
+                const mspnColor = 0xf2e770; // mspn専用の黄色（熊とは別色。淡すぎて白飛びしないよう一段濃く）
                 const matBody = new THREE.MeshToonMaterial({
                     color: mspnColor,
                     gradientMap,
