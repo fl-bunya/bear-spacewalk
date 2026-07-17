@@ -1981,7 +1981,7 @@
 
             function buildMspn() {
                 const { group, part, applyOutlines } = charBase();
-                const mspnColor = 0xf2e770; // mspn専用の黄色（熊とは別色。淡すぎて白飛びしないよう一段濃く）
+                const mspnColor = 0xecdd5c; // mspn専用の黄色（熊とは別色。白飛びしないようさらに一段濃く）
                 const matBody = new THREE.MeshToonMaterial({
                     color: mspnColor,
                     gradientMap,
@@ -2095,7 +2095,7 @@
                     new THREE.SphereGeometry(0.11, 24, 24),
                     matBody,
                     0,
-                    -0.5,
+                    -0.56,
                     -0.37,
                 );
 
