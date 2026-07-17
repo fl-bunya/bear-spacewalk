@@ -1940,17 +1940,27 @@
                 g.quadraticCurveTo(584, 209, 572, 200);
                 g.stroke();
                 if (mouthOpen) {
-                    // 口を開けた笑顔：上唇＝ゆるいω、下唇＝丸い弧の黒線で囲み、中はピンク
+                    // 口を開けた笑顔：上は「人(∧)」の黒線のまま、その下に口内ピンク、
+                    // 底に小さなUの黒線だけ。口の左右には輪郭線を引かない（原画準拠）
+                    // 1) 口内のピンク（輪郭線なしで塗るだけ。∧の下〜Uの上を埋める）
                     g.beginPath();
-                    g.moveTo(488, 249); // 左口角
-                    g.quadraticCurveTo(500, 258, 512, 250); // 上唇：左の山
-                    g.quadraticCurveTo(524, 258, 536, 249); // 上唇：右の山
-                    g.quadraticCurveTo(526, 278, 512, 280); // 下唇：右下の弧
-                    g.quadraticCurveTo(498, 278, 488, 249); // 下唇：左下から戻る
+                    g.moveTo(500, 260);
+                    g.quadraticCurveTo(512, 254, 524, 260); // 上辺（∧の直下）
+                    g.quadraticCurveTo(530, 274, 512, 282); // 右へ回り込んで底へ
+                    g.quadraticCurveTo(494, 274, 500, 260); // 左へ戻る
                     g.closePath();
-                    g.fillStyle = "#e8728f"; // 口内のピンク
+                    g.fillStyle = "#fc9b97"; // 口内のピンク
                     g.fill();
-                    g.lineWidth = 8; // 上下唇の黒線
+                    // 2) 上唇＝人(∧)。閉じ口と同じ形
+                    g.beginPath();
+                    g.moveTo(512, 250);
+                    g.lineTo(499, 262);
+                    g.moveTo(512, 250);
+                    g.lineTo(525, 262);
+                    g.stroke();
+                    // 3) 下唇＝底の小さなU（上に開いた弧）
+                    g.beginPath();
+                    g.arc(512, 275, 9, Math.PI * 0.12, Math.PI * 0.88);
                     g.stroke();
                 } else {
                     // 口：小さな∧
@@ -1971,14 +1981,15 @@
 
             function buildMspn() {
                 const { group, part, applyOutlines } = charBase();
+                const mspnColor = 0xfeff9a; // mspn専用の淡い黄色（熊とは別色）
                 const matBody = new THREE.MeshToonMaterial({
-                    color: CONFIG.bearColor,
+                    color: mspnColor,
                     gradientMap,
                 });
                 const faceClosed = makeMspnFaceTexture(false);
                 const faceOpen = makeMspnFaceTexture(true); // バタバタ時の開口顔
                 const matFace = new THREE.MeshToonMaterial({
-                    color: CONFIG.bearColor,
+                    color: mspnColor,
                     gradientMap,
                     map: faceClosed,
                 });
