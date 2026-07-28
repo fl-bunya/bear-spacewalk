@@ -5,10 +5,19 @@ const fs = require("fs");
 const path = require("path");
 
 const dir = path.join(__dirname, "music");
-const files = fs
+const found = fs
     .readdirSync(dir)
-    .filter((f) => /\.(mp3|m4a|ogg|wav|flac)$/i.test(f))
-    .sort();
+    .filter((f) => /\.(mp3|m4a|ogg|wav|flac)$/i.test(f));
+
+// 既存 playlist.json の並び順を保持し、新規ファイルはソートして末尾に追加する
+// （手動で並び替えた順序を build で失わないため）
+let existing = [];
+try {
+    existing = JSON.parse(fs.readFileSync(path.join(dir, "playlist.json")));
+} catch {}
+const files = existing
+    .filter((f) => found.includes(f))
+    .concat(found.filter((f) => !existing.includes(f)).sort());
 fs.writeFileSync(
     path.join(dir, "playlist.json"),
     JSON.stringify(files, null, 2) + "\n",
