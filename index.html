@@ -2012,7 +2012,8 @@
                     const by = bodyPos.getY(i);
                     // 1) お腹のふくらみ：中腹やや下を中心に半径を膨らませる
                     const f =
-                        1 + bellyAmp * Math.exp(-(((by - bellyY) / bellyW) ** 2));
+                        1 +
+                        bellyAmp * Math.exp(-(((by - bellyY) / bellyW) ** 2));
                     bodyPos.setX(i, bx * f);
                     bodyPos.setZ(i, bz * f);
                     if (by < bodyBottom) {
@@ -2095,7 +2096,7 @@
                     new THREE.SphereGeometry(0.11, 24, 24),
                     matBody,
                     0,
-                    -0.56,
+                    -0.6,
                     -0.37,
                 );
 
