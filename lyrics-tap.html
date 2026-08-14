@@ -146,18 +146,19 @@
             const downloadBtn = document.getElementById("download");
 
             let lines = []; // { text, t } … t は未打刻なら null
+            let lyricsFile = ""; // 実際に読み込んだ歌詞テキストのファイル名
             let blanks = []; // 歌詞を消す空行マーカーの時刻（秒）
             let cursor = 0; // 次に打刻する行
 
             const url = (name) => "./music/" + encodeURIComponent(name);
-            // 曲名 → 歌詞テキスト名（テイク番号 -1/-2/-3 を落とす）
-            function lyricsName(track) {
-                const base = track.replace(/-\d+\.[^.]+$/, "");
-                // -N が付かないファイル名では上の置換が効かないので拡張子だけ落とす
-                return (
-                    (base === track ? track.replace(/\.[^.]+$/, "") : base) +
-                    "-lyrics.txt"
-                );
+            // 曲名 → 歌詞テキスト名の候補。テイク専用の歌詞（<曲名>-N-lyrics.txt）が
+            // あればそれを優先し、無ければテイク共通の <曲名>-lyrics.txt を使う
+            function lyricsCandidates(track) {
+                const noExt = track.replace(/\.[^.]+$/, "");
+                const noTake = track.replace(/-\d+\.[^.]+$/, "");
+                return noTake === track
+                    ? [noExt + "-lyrics.txt"]
+                    : [noExt + "-lyrics.txt", noTake + "-lyrics.txt"];
             }
             const lrcName = (track) => track.replace(/\.[^.]+$/, "") + ".lrc";
 
@@ -214,7 +215,7 @@
                     });
                 const done = lines.filter((l) => l.t != null).length;
                 statusEl.textContent = lines.length
-                    ? `${done} / ${lines.length} 行`
+                    ? `${lyricsFile} ・ ${done} / ${lines.length} 行`
                     : "";
                 downloadBtn.disabled = !done;
                 const cur = linesEl.querySelector(".cursor");
@@ -246,16 +247,24 @@
                 lines = [];
                 blanks = [];
                 cursor = 0;
+                const candidates = lyricsCandidates(track);
                 let txt = null;
-                try {
-                    const res = await fetch(url(lyricsName(track)));
-                    if (res.ok) txt = await res.text();
-                } catch (e) {}
+                for (const name of candidates) {
+                    try {
+                        const res = await fetch(url(name));
+                        if (res.ok) {
+                            txt = await res.text();
+                            lyricsFile = name;
+                            break;
+                        }
+                    } catch (e) {}
+                }
                 if (txt == null) {
                     linesEl.innerHTML = "";
+                    lyricsFile = "";
                     statusEl.textContent =
                         "歌詞ファイル（" +
-                        lyricsName(track) +
+                        candidates.join(" / ") +
                         "）がありません";
                     downloadBtn.disabled = true;
                     return;
