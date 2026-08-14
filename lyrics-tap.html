@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="ja">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>歌詞タイムスタンプ入力</title>
+        <!--
+            music/<曲名>-lyrics.txt の各行に、曲を聴きながらタイムスタンプを打つ開発用ツール。
+            出力した .lrc を music/ に置くと index.html が再生位置に合わせて歌詞を表示する。
+            デプロイ対象外（package.json の deploy は index.html と lib/textures/music のみコピー）。
+        -->
+        <style>
+            :root {
+                color-scheme: dark;
+            }
+            body {
+                margin: 0;
+                background: #0b1224;
+                color: #cfe0ff;
+                font:
+                    14px/1.6 "Hiragino Kaku Gothic ProN",
+                    "Hiragino Sans",
+                    sans-serif;
+                letter-spacing: 0.04em;
+            }
+            header {
+                position: sticky;
+                top: 0;
+                background: #0b1224;
+                border-bottom: 1px solid rgba(120, 160, 230, 0.25);
+                padding: 12px 16px;
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 12px;
+            }
+            select,
+            input[type="number"],
+            button {
+                background: rgba(30, 48, 88, 0.8);
+                color: #cfe0ff;
+                border: 1px solid rgba(120, 160, 230, 0.35);
+                border-radius: 4px;
+                padding: 5px 10px;
+                font: inherit;
+            }
+            button {
+                cursor: pointer;
+            }
+            button:disabled {
+                opacity: 0.35;
+                cursor: default;
+            }
+            audio {
+                width: 100%;
+                margin-top: 8px;
+            }
+            #status {
+                color: rgba(180, 205, 255, 0.6);
+                font-size: 12px;
+            }
+            #lines {
+                margin: 0;
+                padding: 8px 0 220px;
+                list-style: none;
+            }
+            #lines li {
+                display: flex;
+                gap: 14px;
+                padding: 4px 16px;
+                cursor: pointer;
+                border-left: 3px solid transparent;
+            }
+            #lines li.done {
+                color: rgba(180, 205, 255, 0.55);
+            }
+            #lines li.cursor {
+                background: rgba(60, 100, 180, 0.25);
+                border-left-color: #7fb0ff;
+                color: #eaf3ff;
+            }
+            #lines .time {
+                font-family: ui-monospace, Menlo, monospace;
+                font-size: 12px;
+                color: rgba(150, 190, 255, 0.75);
+                min-width: 78px;
+            }
+            #lines .blank {
+                font-style: italic;
+                opacity: 0.5;
+            }
+            footer {
+                position: fixed;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(11, 18, 36, 0.95);
+                border-top: 1px solid rgba(120, 160, 230, 0.25);
+                padding: 10px 16px;
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 16px;
+                font-size: 12px;
+            }
+            kbd {
+                background: rgba(60, 90, 160, 0.45);
+                border-radius: 3px;
+                padding: 1px 6px;
+                font: inherit;
+            }
+        </style>
+    </head>
+    <body>
+        <header>
+            <select id="track"></select>
+            <label
+                >ずらし
+                <input
+                    id="offset"
+                    type="number"
+                    value="-0.2"
+                    step="0.05"
+                    style="width: 76px"
+            /></label>
+            <button id="download" disabled>.lrc をダウンロード</button>
+            <span id="status"></span>
+            <audio id="audio" controls preload="auto"></audio>
+        </header>
+        <ul id="lines"></ul>
+        <footer>
+            <span><kbd>Space</kbd> 打刻して次へ</span>
+            <span><kbd>Enter</kbd> 空行（歌詞を消す）を打刻</span>
+            <span><kbd>Backspace</kbd> 1つ戻す</span>
+            <span><kbd>←</kbd><kbd>→</kbd> 3秒シーク</span>
+            <span>行をクリックでその時刻へ</span>
+        </footer>
+        <script>
+            "use strict";
+
+            const audio = document.getElementById("audio");
+            const trackSel = document.getElementById("track");
+            const offsetInput = document.getElementById("offset");
+            const linesEl = document.getElementById("lines");
+            const statusEl = document.getElementById("status");
+            const downloadBtn = document.getElementById("download");
+
+            let lines = []; // { text, t } … t は未打刻なら null
+            let blanks = []; // 歌詞を消す空行マーカーの時刻（秒）
+            let cursor = 0; // 次に打刻する行
+
+            const url = (name) => "./music/" + encodeURIComponent(name);
+            // 曲名 → 歌詞テキスト名（テイク番号 -1/-2/-3 を落とす）
+            function lyricsName(track) {
+                const base = track.replace(/-\d+\.[^.]+$/, "");
+                // -N が付かないファイル名では上の置換が効かないので拡張子だけ落とす
+                return (
+                    (base === track ? track.replace(/\.[^.]+$/, "") : base) +
+                    "-lyrics.txt"
+                );
+            }
+            const lrcName = (track) => track.replace(/\.[^.]+$/, "") + ".lrc";
+
+            function fmt(sec) {
+                if (sec == null) return "--:--.--";
+                const s = Math.max(0, sec);
+                const m = Math.floor(s / 60);
+                const r = s - m * 60;
+                return (
+                    String(m).padStart(2, "0") +
+                    ":" +
+                    (r < 10 ? "0" : "") +
+                    r.toFixed(2)
+                );
+            }
+
+            function render() {
+                linesEl.innerHTML = "";
+                lines.forEach((line, i) => {
+                    const li = document.createElement("li");
+                    li.className =
+                        (line.t != null ? "done " : "") +
+                        (i === cursor ? "cursor" : "");
+                    const time = document.createElement("span");
+                    time.className = "time";
+                    time.textContent = fmt(line.t);
+                    const text = document.createElement("span");
+                    text.textContent = line.text;
+                    li.append(time, text);
+                    li.addEventListener("click", () => {
+                        cursor = i;
+                        if (line.t != null) audio.currentTime = line.t;
+                        render();
+                    });
+                    linesEl.appendChild(li);
+                });
+                blanks
+                    .slice()
+                    .sort((a, b) => a - b)
+                    .forEach((t) => {
+                        const li = document.createElement("li");
+                        li.className = "done";
+                        const time = document.createElement("span");
+                        time.className = "time";
+                        time.textContent = fmt(t);
+                        const text = document.createElement("span");
+                        text.className = "blank";
+                        text.textContent = "（空行）";
+                        li.append(time, text);
+                        li.addEventListener("click", () => {
+                            audio.currentTime = t;
+                        });
+                        linesEl.appendChild(li);
+                    });
+                const done = lines.filter((l) => l.t != null).length;
+                statusEl.textContent = lines.length
+                    ? `${done} / ${lines.length} 行`
+                    : "";
+                downloadBtn.disabled = !done;
+                const cur = linesEl.querySelector(".cursor");
+                if (cur) cur.scrollIntoView({ block: "center" });
+            }
+
+            // 既存の .lrc を読み込んで打刻済みの時刻を復元する（打ち直し・部分修正用）
+            async function restoreLrc(track) {
+                try {
+                    const res = await fetch(url(lrcName(track)));
+                    if (!res.ok) return;
+                    let i = 0;
+                    for (const raw of (await res.text()).split(/\r?\n/)) {
+                        const m = raw.match(/^\[(\d+):(\d+(?:\.\d+)?)\](.*)$/);
+                        if (!m) continue;
+                        const t = +m[1] * 60 + +m[2];
+                        if (m[3].trim()) {
+                            if (i < lines.length) lines[i++].t = t;
+                        } else {
+                            blanks.push(t);
+                        }
+                    }
+                    cursor = Math.min(i, Math.max(0, lines.length - 1));
+                } catch (e) {} // 未作成なら何もしない
+            }
+
+            async function selectTrack(track) {
+                audio.src = url(track);
+                lines = [];
+                blanks = [];
+                cursor = 0;
+                let txt = null;
+                try {
+                    const res = await fetch(url(lyricsName(track)));
+                    if (res.ok) txt = await res.text();
+                } catch (e) {}
+                if (txt == null) {
+                    linesEl.innerHTML = "";
+                    statusEl.textContent =
+                        "歌詞ファイル（" +
+                        lyricsName(track) +
+                        "）がありません";
+                    downloadBtn.disabled = true;
+                    return;
+                }
+                // [Intro] などのセクション見出しと空行は打刻対象外
+                lines = txt
+                    .split(/\r?\n/)
+                    .map((s) => s.trim())
+                    .filter((s) => s && !s.startsWith("["))
+                    .map((text) => ({ text, t: null }));
+                await restoreLrc(track);
+                render();
+            }
+
+            function stamp(text) {
+                const t = audio.currentTime;
+                if (text === null) {
+                    blanks.push(t);
+                } else {
+                    if (cursor >= lines.length) return;
+                    lines[cursor].t = t;
+                    cursor++;
+                }
+                render();
+            }
+
+            function undo() {
+                // 直前に打った行（空行マーカーの方が後なら空行）を取り消す
+                const lastLine = cursor > 0 ? lines[cursor - 1].t : null;
+                const lastBlank = blanks.length
+                    ? Math.max(...blanks)
+                    : null;
+                if (
+                    lastBlank != null &&
+                    (lastLine == null || lastBlank > lastLine)
+                ) {
+                    blanks.splice(blanks.indexOf(lastBlank), 1);
+                } else if (cursor > 0) {
+                    cursor--;
+                    lines[cursor].t = null;
+                }
+                render();
+            }
+
+            window.addEventListener("keydown", (e) => {
+                if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT")
+                    return;
+                if (e.code === "Space") {
+                    e.preventDefault();
+                    stamp("");
+                } else if (e.code === "Enter" || e.code === "NumpadEnter") {
+                    e.preventDefault();
+                    stamp(null);
+                } else if (e.code === "Backspace") {
+                    e.preventDefault();
+                    undo();
+                } else if (e.code === "ArrowLeft") {
+                    e.preventDefault();
+                    audio.currentTime = Math.max(0, audio.currentTime - 3);
+                } else if (e.code === "ArrowRight") {
+                    e.preventDefault();
+                    audio.currentTime += 3;
+                }
+            });
+
+            function buildLrc(track) {
+                const off = parseFloat(offsetInput.value) || 0;
+                const entries = lines
+                    .filter((l) => l.t != null)
+                    .map((l) => ({ t: l.t + off, text: l.text }))
+                    .concat(blanks.map((t) => ({ t: t + off, text: "" })))
+                    .sort((a, b) => a.t - b.t);
+                const body = entries
+                    .map((e) => "[" + fmt(e.t) + "]" + e.text)
+                    .join("\n");
+                return (
+                    "[ti:" + track.replace(/\.[^.]+$/, "") + "]\n" + body + "\n"
+                );
+            }
+
+            // ダウンロードしたものを music/ へ移して使う。
+            // File System Access API で music/ に直接書く方式は、Chrome 側がパスによって
+            // フォルダ選択自体を拒否する（「システムファイルが含まれている」）ため採らない。
+            downloadBtn.addEventListener("click", () => {
+                const track = trackSel.value;
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(
+                    new Blob([buildLrc(track)], {
+                        type: "text/plain;charset=utf-8",
+                    }),
+                );
+                a.download = lrcName(track);
+                a.click();
+                URL.revokeObjectURL(a.href);
+                statusEl.textContent =
+                    lrcName(track) + " をダウンロードしました（music/ へ移動）";
+            });
+
+            trackSel.addEventListener("change", () =>
+                selectTrack(trackSel.value),
+            );
+
+            (async () => {
+                let list = [];
+                try {
+                    const res = await fetch("./music/playlist.json");
+                    if (res.ok) list = await res.json();
+                } catch (e) {}
+                if (!list.length) {
+                    statusEl.textContent =
+                        "music/playlist.json がありません（npm run build で生成）";
+                    return;
+                }
+                list.forEach((name) => {
+                    const opt = document.createElement("option");
+                    opt.value = opt.textContent = name;
+                    trackSel.appendChild(opt);
+                });
+                selectTrack(list[0]);
+            })();
+        </script>
+    </body>
+</html>

@@ -89,79 +89,33 @@
                     opacity: 0.85;
                 }
             }
-            #volume {
+            /* 現在時刻（左上）。テレビの時刻表示のように常時出しておく */
+            #clock {
                 position: fixed;
                 left: 14px;
-                bottom: 10px;
+                top: 14px;
                 z-index: 5;
-                display: none;
-                align-items: center;
-                gap: 7px;
-                color: rgba(180, 205, 255, 0.8);
-                font-size: 12px;
-                opacity: 0.35;
-                transition: opacity 0.3s ease;
+                color: rgba(255, 255, 255, 0.8);
+                font:
+                    15px/1 "Hiragino Kaku Gothic ProN",
+                    sans-serif;
+                letter-spacing: 0.14em;
+                font-variant-numeric: tabular-nums;
+                pointer-events: none;
             }
-            #volume.show {
-                display: flex;
-            }
-            @media (hover: hover) {
-                #volume:hover {
-                    opacity: 0.85;
-                }
-            }
-            #volume input {
-                width: 90px;
-                height: 3px;
-                cursor: pointer;
-                accent-color: #5fa8ff;
-                background: transparent;
-            }
-            /* BGM 差し替えUI（右下・さりげないが押せると分かる下線リンク調） */
-            #music {
-                position: fixed;
-                right: 14px;
-                bottom: 10px;
-                z-index: 5;
-                display: none;
-                justify-content: flex-end;
-                opacity: 0.3;
-                transition: opacity 0.3s ease;
-            }
-            #music.show {
-                display: flex;
-            }
-            @media (hover: hover) {
-                #music:hover {
-                    opacity: 0.9;
-                }
-            }
-            #music label {
-                color: rgba(180, 205, 255, 0.85);
-                font-size: 11px;
-                cursor: pointer;
-                letter-spacing: 0.12em;
-                user-select: none;
-                border-bottom: 1px solid rgba(150, 185, 255, 0.5);
-                padding-bottom: 1px;
-                font-family: "Hiragino Kaku Gothic ProN", sans-serif;
-            }
-            #music input {
-                display: none;
-            }
-            /* 再生中のファイル名（右下・曲を選ぶの上）。両脇の « » で前後の曲へ */
+            /* 再生中のファイル名（左下）。両脇の « » で前後の曲へ */
             #nowplaying {
                 position: fixed;
-                right: 14px;
-                bottom: 32px;
+                left: 14px;
+                bottom: 14px;
                 z-index: 5;
                 display: flex;
                 align-items: center;
-                justify-content: flex-end;
+                justify-content: flex-start;
                 gap: 10px;
-                color: rgba(180, 205, 255, 0.4);
+                color: rgba(255, 255, 255, 0.75);
                 font:
-                    11px/1.4 "Hiragino Kaku Gothic ProN",
+                    13px/1.4 "Hiragino Kaku Gothic ProN",
                     sans-serif;
                 letter-spacing: 0.08em;
                 pointer-events: none;
@@ -179,8 +133,8 @@
                 background: none;
                 border: none;
                 padding: 0 2px;
-                color: rgba(180, 205, 255, 0.55);
-                font-size: 15px;
+                color: rgba(255, 255, 255, 0.8);
+                font-size: 17px;
                 line-height: 1;
                 cursor: pointer;
                 display: none; /* プレイリスト読み込み後に表示 */
@@ -192,8 +146,36 @@
             @media (hover: hover) {
                 #nowplaying button:hover,
                 #nowplaying span:hover {
-                    color: rgba(215, 235, 255, 0.95);
+                    color: #fff;
                 }
+            }
+            /* 歌詞（下部中央）。曲に対応する .lrc がある間だけ現在行を1行出す */
+            #lyrics {
+                position: fixed;
+                left: 0;
+                right: 0;
+                bottom: 56px; /* #nowplaying(bottom:32px) の上 */
+                z-index: 5;
+                text-align: center;
+                pointer-events: none;
+                color: rgba(205, 225, 255, 0.92);
+                font-family:
+                    "Hiragino Kaku Gothic ProN",
+                    "Hiragino Sans",
+                    sans-serif;
+                font-size: clamp(13px, 3.6vw, 21px);
+                letter-spacing: 0.08em;
+                /* 明るい地球や星の上にも重なるため、他のUIと違い影で可読性を確保する */
+                text-shadow: 0 2px 12px rgba(0, 0, 0, 0.55);
+            }
+            #lyrics span {
+                display: inline-block;
+                max-width: 88vw;
+                opacity: 0;
+                transition: opacity 0.25s ease;
+            }
+            #lyrics span.show {
+                opacity: 1;
             }
             #overlay .hint {
                 font-size: 11px;
@@ -243,14 +225,8 @@
                 »
             </button>
         </div>
-        <div id="music">
-            <label for="musicFile">曲を選ぶ</label
-            ><input id="musicFile" type="file" accept="audio/*" />
-        </div>
-        <div id="volume">
-            <span>♪</span
-            ><input id="vol" type="range" min="0" max="1" step="0.01" />
-        </div>
+        <div id="lyrics"><span id="lyricsline"></span></div>
+        <div id="clock"></div>
         <audio id="bgm" preload="auto"></audio>
         <script src="./lib/three.min.js"></script>
         <script>
@@ -2324,6 +2300,62 @@
                 }
             });
 
+            // ====== 歌詞（LRC同期） ======
+            // 曲と同じ名前の music/<曲名>.lrc（[mm:ss.xx]歌詞 形式）があれば、
+            // 再生位置に対応する行だけを画面下部に出す。無い曲は何も表示しない。
+            // 同じ曲でもテイクごとに尺が違うため、.lrc は音声ファイルと1対1で持つ。
+            const lyricsEl = document.getElementById("lyricsline");
+            let lyricsLines = []; // { t: 秒, text: 行 } を時刻順に
+            let lyricsIndex = -1;
+            let lyricsToken = 0; // 曲を素早く切り替えたとき古い fetch の結果を捨てる
+            const lrcUrl = (name) =>
+                "./music/" +
+                encodeURIComponent(name.replace(/\.[^.]+$/, "") + ".lrc");
+            function clearLyrics() {
+                lyricsLines = [];
+                lyricsIndex = -1;
+                lyricsEl.classList.remove("show");
+                lyricsEl.textContent = "";
+            }
+            async function loadLyrics(name) {
+                const token = ++lyricsToken;
+                clearLyrics();
+                try {
+                    const res = await fetch(lrcUrl(name));
+                    if (!res.ok) return; // .lrc 未整備の曲は歌詞なしで通常再生
+                    const lines = [];
+                    for (const raw of (await res.text()).split(/\r?\n/)) {
+                        // [ti:...] 等のメタタグは時刻にマッチしないので自然に無視される
+                        const m = raw.match(/^\[(\d+):(\d+(?:\.\d+)?)\](.*)$/);
+                        if (m)
+                            lines.push({
+                                t: +m[1] * 60 + +m[2],
+                                text: m[3].trim(),
+                            });
+                    }
+                    if (token !== lyricsToken) return; // 既に別の曲へ切り替わっている
+                    lines.sort((a, b) => a.t - b.t);
+                    lyricsLines = lines;
+                } catch (e) {} // file:// 直開き等で取得できない場合は歌詞なしで続行
+            }
+            // 再生位置に対応する行へインデックスを進める（シークや曲頭戻りにも追従）
+            function updateLyrics() {
+                if (!lyricsLines.length) return;
+                const now = audioEl.currentTime;
+                let i = lyricsIndex;
+                while (i + 1 < lyricsLines.length && lyricsLines[i + 1].t <= now)
+                    i++;
+                while (i >= 0 && lyricsLines[i].t > now) i--;
+                if (i === lyricsIndex) return;
+                lyricsIndex = i;
+                const text = i < 0 ? "" : lyricsLines[i].text;
+                // 文字の差し替えは即時。フェードだけ毎行やり直す（歌より遅れて出ないように）
+                lyricsEl.classList.remove("show");
+                void lyricsEl.offsetWidth; // トランジション再スタートのためのリフロー
+                lyricsEl.textContent = text;
+                if (text) lyricsEl.classList.add("show");
+            }
+
             const overlay = document.getElementById("overlay");
             let analyser = null;
             let freqData = null;
@@ -2383,37 +2415,30 @@
                 keepAwake();
             }
 
-            // 音量スライダー（控えめ表示・再生開始後に出現・設定はlocalStorageに記憶）
-            const volWrap = document.getElementById("volume");
-            const volSlider = document.getElementById("vol");
-            let savedVol = 0.8;
-            try {
-                const s = parseFloat(
-                    localStorage.getItem("bear-spacewalk-vol"),
-                );
-                if (!isNaN(s)) savedVol = Math.min(1, Math.max(0, s));
-            } catch (e) {
-                /* localStorage が使えない環境では既定値 */
+            // 現在時刻（左上）。分が変わったときだけ書き換わればよいので1秒ごとに確認する
+            const clockEl = document.getElementById("clock");
+            function updateClock() {
+                const d = new Date();
+                clockEl.textContent =
+                    d.getHours() +
+                    ":" +
+                    String(d.getMinutes()).padStart(2, "0");
             }
-            audioEl.volume = savedVol;
-            volSlider.value = savedVol;
-            volSlider.addEventListener("input", () => {
-                audioEl.volume = parseFloat(volSlider.value);
-                try {
-                    localStorage.setItem("bear-spacewalk-vol", volSlider.value);
-                } catch (e) {}
-            });
+            updateClock();
+            setInterval(updateClock, 1000);
 
-            // BGM 差し替え（File API）：選択／ドロップした音声を読み込み、その場で差し替える
-            const musicWrap = document.getElementById("music");
-            const musicInput = document.getElementById("musicFile");
+            // BGM 差し替え（File API）：ドロップした音声を読み込み、その場で差し替える
             const nowPlaying = document.getElementById("trackname");
-            function setNowPlaying(name) {
+            // isLocal: D&D／ファイル選択で読み込んだローカル曲。同名の .lrc がサーバ側に
+            // あっても別音源で尺が合わないため、歌詞は読まずに消す
+            function setNowPlaying(name, isLocal) {
                 // 表示用に拡張子（.mp3 等）は落とす
                 const label = name ? name.replace(/\.[^.]+$/, "") : "";
                 nowPlaying.textContent = label ? "♪ " + label : "";
                 // ブラウザのタブにも再生中の曲名を出す
                 document.title = label ? "♪ " + label : "Bear Spacewalk";
+                if (isLocal || !name) clearLyrics();
+                else loadLyrics(name);
             }
             setNowPlaying(CONFIG.audioFile.split("/").pop()); // 初期は既定曲のファイル名
             let currentObjectURL = null;
@@ -2424,16 +2449,10 @@
                 audioEl.src = currentObjectURL;
                 fakeMode = false;
                 silentFrames = 0; // 解析を再開
-                setNowPlaying(file.name); // 右下にファイル名を表示
+                setNowPlaying(file.name, true); // 左下にファイル名を表示（歌詞は出さない）
                 overlay.classList.add("hidden");
-                volWrap.classList.add("show");
-                musicWrap.classList.add("show");
                 startAudio(); // グラフは初回のみ生成、以降は再生のみ
             }
-            musicInput.addEventListener("change", () => {
-                loadAudioFile(musicInput.files[0]);
-                musicInput.value = "";
-            });
             // ページ全体へのドラッグ＆ドロップ
             window.addEventListener("dragover", (e) => {
                 e.preventDefault();
@@ -2457,16 +2476,12 @@
                 "click",
                 () => {
                     overlay.classList.add("hidden");
-                    volWrap.classList.add("show");
-                    musicWrap.classList.add("show");
                     startAudio();
                 },
                 { once: true },
             );
             if (isPreview) {
                 overlay.classList.add("hidden");
-                volWrap.classList.add("show"); // 撮影確認用に表示
-                musicWrap.classList.add("show");
             }
 
             // bin 幅 ≈ 21.5Hz（44.1kHz / 2048）: bass≈40-260Hz, mid≈260-2k, treble≈2k-8k
@@ -2827,6 +2842,7 @@
                 const dt = Math.min(clock.getDelta(), 0.05);
                 t += dt;
                 updateBands(t);
+                updateLyrics(); // 歌詞は再生位置（audioEl.currentTime）で切り替える
 
                 // 地球：日本→西へユーラシアを映す俯瞰ツアー。tourSpin の一定速で回す（音による加減速はしない）。
                 // プレビューは効果確認用に 5秒で1周（開始構図 t0=0 は実モードと共通）
