@@ -244,6 +244,10 @@
                 bearOffset: [0.42, 0, -1.05], // カメラ至近に置く（最接近時の地表より必ず手前＝地球に隠れない）。x は初期値で、毎フレーム bearXFrac から再計算
                 bearXFrac: 0.48, // 熊のx位置＝水平視野半幅に対する割合。画角・アスペクト比が変わっても画面内に収まる
                 bearScale: 0.11, // 至近距離でも画面上ではほどよい大きさになる縮小率
+                puddingRadius: 1.5, // 熊の周りを回るプリンの軌道半径（熊のローカル単位。画面幅が狭いときは自動で縮む）
+                puddingPeriod: 32.0, // プリンが1周する秒数
+                puddingTilt: [0.52, 0, 0.6], // 軌道面の傾き rad。x/z 両方に倒して斜めの軸で回す
+                puddingSpin: 0.28, // プリン自身の自転 rad/s（回転体なので縦回転させて動きを見せる）
                 starCount: 5000,
                 earthSpin: 0.02, // 自転速度 rad/s（timeSync無効時の演出速度）
                 orbitSpeed: 0.02, // 遊覧カメラの基本周回速度 rad/s（1周 ≈ 5分強）
@@ -2110,6 +2114,45 @@
                 };
             }
 
+            // ====== 宇宙食のプリン（熊の周りを1個だけ回る） ======
+            // 「宇宙食の プリンを 一個だけ 残してある」（宇宙でさみしいなあ）から。
+            // 逆さに置いたプリンなので上面がカラメル。キャラと同じトゥーン＋輪郭線で作る
+            function buildPudding() {
+                const g = new THREE.Group();
+                const body = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.116, 0.176, 0.15, 24),
+                    new THREE.MeshToonMaterial({
+                        color: 0xf6d98c,
+                        gradientMap,
+                    }),
+                );
+                const caramel = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.12, 0.12, 0.022, 24),
+                    new THREE.MeshToonMaterial({
+                        color: 0x9a5220,
+                        gradientMap,
+                    }),
+                );
+                caramel.position.y = 0.081;
+                // 皿：プリンの底より一回り広い薄い円盤（無重力なので一緒に漂う）
+                const plate = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.212, 0.186, 0.014, 24),
+                    new THREE.MeshToonMaterial({
+                        color: 0xdde7f4,
+                        gradientMap,
+                    }),
+                );
+                plate.position.y = -0.082;
+                g.add(body, caramel, plate);
+                // 輪郭線：キャラと同じ inverted hull（法線反転させた一回り大きい黒メッシュ）
+                for (const m of [body, caramel, plate]) {
+                    const o = new THREE.Mesh(m.geometry, matOutline);
+                    o.scale.setScalar(1.08);
+                    m.add(o);
+                }
+                return g;
+            }
+
             // ====== キャラ選択：?char=mspn で新キャラ、それ以外（既定）は熊 ======
             const charName = new URLSearchParams(location.search).get("char");
             const character = charName === "mspn" ? buildMspn() : buildBear();
@@ -2124,31 +2167,47 @@
             let dragPitchVel = 0;
             let lastMoveTs = 0;
             let dragging = false;
+            // プリンも同じ操作感で回せるよう、状態だけ別に持つ（熊の回転や
+            // 手足バタバタの判定にプリンの操作が混ざらないように分けている）
+            let puddingDragYaw = 0;
+            let puddingDragPitch = 0;
+            let puddingYawVel = 0;
+            let puddingPitchVel = 0;
+            let draggingPudding = false;
             const dragRay = new THREE.Raycaster();
             const dragNDC = new THREE.Vector2();
-            function pickCharacter(e) {
+            // クリック位置で掴めるものを返す（重なっている場合は手前の方）
+            function pickTarget(e) {
                 dragNDC.set(
                     (e.clientX / innerWidth) * 2 - 1,
                     -(e.clientY / innerHeight) * 2 + 1,
                 );
                 dragRay.setFromCamera(dragNDC, camera);
-                return dragRay.intersectObject(bear, true).length > 0;
+                const hits = dragRay.intersectObjects([pudding, bear], true);
+                for (let o = hits.length ? hits[0].object : null; o; o = o.parent)
+                    if (o === pudding || o === bear) return o;
+                return null;
             }
             renderer.domElement.addEventListener("pointerdown", (e) => {
-                if (!pickCharacter(e)) return;
-                dragging = true;
-                dragYawVel = 0;
-                dragPitchVel = 0;
+                const target = pickTarget(e);
+                if (!target) return;
+                if (target === pudding) {
+                    draggingPudding = true;
+                    puddingYawVel = 0;
+                    puddingPitchVel = 0;
+                } else {
+                    dragging = true;
+                    dragYawVel = 0;
+                    dragPitchVel = 0;
+                }
                 lastMoveTs = e.timeStamp;
                 renderer.domElement.setPointerCapture(e.pointerId);
                 renderer.domElement.style.cursor = "grabbing";
             });
             renderer.domElement.addEventListener("pointermove", (e) => {
-                if (dragging) {
+                if (dragging || draggingPudding) {
                     const dy = e.movementX * 0.01;
                     const dp = e.movementY * 0.01;
-                    dragYaw += dy;
-                    dragPitch += dp; // 縦も一回転可（クランプなし）
                     // 直近の指の速さを平滑化して保持（離した瞬間の慣性になる）
                     const dtm = Math.min(
                         0.1,
@@ -2156,19 +2215,26 @@
                     );
                     lastMoveTs = e.timeStamp;
                     // 角速度は±6rad/s（約1回転/秒）に制限：暴走防止
-                    dragYawVel = THREE.MathUtils.clamp(
-                        THREE.MathUtils.lerp(dragYawVel, dy / dtm, 0.35),
-                        -6,
-                        6,
-                    );
-                    dragPitchVel = THREE.MathUtils.clamp(
-                        THREE.MathUtils.lerp(dragPitchVel, dp / dtm, 0.35),
-                        -6,
-                        6,
-                    );
+                    const vel = (prev, d) =>
+                        THREE.MathUtils.clamp(
+                            THREE.MathUtils.lerp(prev, d / dtm, 0.35),
+                            -6,
+                            6,
+                        );
+                    if (draggingPudding) {
+                        puddingDragYaw += dy;
+                        puddingDragPitch += dp;
+                        puddingYawVel = vel(puddingYawVel, dy);
+                        puddingPitchVel = vel(puddingPitchVel, dp);
+                    } else {
+                        dragYaw += dy;
+                        dragPitch += dp; // 縦も一回転可（クランプなし）
+                        dragYawVel = vel(dragYawVel, dy);
+                        dragPitchVel = vel(dragPitchVel, dp);
+                    }
                 } else {
                     // ホバーで「掴める」ことを示す
-                    renderer.domElement.style.cursor = pickCharacter(e)
+                    renderer.domElement.style.cursor = pickTarget(e)
                         ? "grab"
                         : "";
                 }
@@ -2176,6 +2242,7 @@
             for (const ev of ["pointerup", "pointercancel"]) {
                 renderer.domElement.addEventListener(ev, () => {
                     dragging = false;
+                    draggingPudding = false;
                     renderer.domElement.style.cursor = "";
                 });
             }
@@ -2185,15 +2252,28 @@
                 THREE.MathUtils.euclideanModulo(a + Math.PI, Math.PI * 2) -
                 Math.PI;
             function updateDragDecay(dt) {
-                if (dragging) return;
-                dragYaw = wrapAngle(dragYaw + dragYawVel * dt);
-                dragPitch = wrapAngle(dragPitch + dragPitchVel * dt);
                 const kv = Math.exp(-dt / 1.5); // 摩擦：角速度の減衰
-                dragYawVel *= kv;
-                dragPitchVel *= kv;
                 const kp = Math.exp(-dt / 3.0); // 姿勢の復帰はさらに緩やかに
-                dragYaw *= kp;
-                dragPitch *= kp;
+                if (!dragging) {
+                    dragYaw = wrapAngle(dragYaw + dragYawVel * dt);
+                    dragPitch = wrapAngle(dragPitch + dragPitchVel * dt);
+                    dragYawVel *= kv;
+                    dragPitchVel *= kv;
+                    dragYaw *= kp;
+                    dragPitch *= kp;
+                }
+                if (!draggingPudding) {
+                    puddingDragYaw = wrapAngle(
+                        puddingDragYaw + puddingYawVel * dt,
+                    );
+                    puddingDragPitch = wrapAngle(
+                        puddingDragPitch + puddingPitchVel * dt,
+                    );
+                    puddingYawVel *= kv;
+                    puddingPitchVel *= kv;
+                    puddingDragYaw *= kp;
+                    puddingDragPitch *= kp;
+                }
             }
 
             // ====== カメラリグ：地球を見回す遊覧カメラ + カメラに同伴する黄色い熊 ======
@@ -2202,6 +2282,14 @@
             camera.add(bear);
             bear.position.set(...CONFIG.bearOffset);
             bear.scale.setScalar(CONFIG.bearScale); // カメラ空間では無回転で顔がこちらを向く
+            // プリンは熊の子にはしない。子にすると熊をドラッグで回したとき軌道面ごと
+            // 倒れてしまうため、位置だけ毎フレーム熊に合わせ、回転は独立させる
+            const puddingOrbit = new THREE.Group();
+            puddingOrbit.rotation.set(...CONFIG.puddingTilt);
+            puddingOrbit.scale.setScalar(CONFIG.bearScale);
+            camera.add(puddingOrbit);
+            const pudding = buildPudding();
+            puddingOrbit.add(pudding);
             // 熊専用のフィルライト：夜側や逆光でも熊が見えるようカメラに同伴させる
             // （地球はカスタムシェーダーでシーンライトを受けないため、熊と装備だけに効く）
             const bearFill = new THREE.PointLight(0xfff0e0, 0.3, 6, 1.5);
@@ -2950,6 +3038,31 @@
                         Math.sin(t * 0.23 + 1.2) * 0.025,
                     CONFIG.bearOffset[2] + Math.sin(t * 0.17 + 2.4) * 0.03,
                 );
+                // プリン：熊の位置に追従しつつ、熊の回転とは無関係に一定の輪を描く。
+                // 奥に回り込む間は深度テストで熊の後ろに隠れる
+                puddingOrbit.position.copy(bear.position);
+                // 熊の右側の余白（視野半幅 - 熊のx）に収まるところまで軌道半径を頭打ちに
+                // する。0.7 はカメラに近づく側で見かけが拡大する分の余裕
+                const puddingR = Math.min(
+                    CONFIG.puddingRadius,
+                    (bearHalfW * (1 - CONFIG.bearXFrac) * 0.7) /
+                        CONFIG.bearScale,
+                );
+                const puddingAngle = (t / CONFIG.puddingPeriod) * Math.PI * 2;
+                pudding.position.set(
+                    Math.cos(puddingAngle) * puddingR,
+                    0,
+                    Math.sin(puddingAngle) * puddingR,
+                );
+                // 自転。回転体なので縦軸（y）で回しても見た目が変わらないため、
+                // 少し傾けた縦回転にして「ふわふわ回っている」のが分かるようにする。
+                // ドラッグの横方向も同じ理由で y ではなく z（縦回転）に流す
+                pudding.rotation.set(
+                    0.3 + puddingDragPitch,
+                    0,
+                    t * CONFIG.puddingSpin + puddingDragYaw,
+                );
+
                 updateDragDecay(dt);
                 bear.rotation.z = Math.sin(t * 0.12) * 0.35 - 0.15;
                 if (t >= 0.1) bearYaw += dt * 0.08; // スタート時は左向き(-0.6)から回り始める
